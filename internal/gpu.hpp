@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./structs.hpp"
+#include "./shader_manager.hpp"
 
 #include "public/gpu.hpp"
 
@@ -12,6 +13,7 @@ namespace grf {
 class GPU::Impl {
 public:
   Settings            m_settings;
+
   GLFWwindow *        m_window = nullptr;
   vk::Instance        m_instance = nullptr;
   vk::SurfaceKHR      m_surface = nullptr;
@@ -20,6 +22,8 @@ public:
   Queue               m_graphicsQueue;
   Queue               m_computeQueue;
   Queue               m_transferQueue;
+
+  ShaderManager *     m_shaderManager = nullptr;
 
 public:
   explicit Impl(const Settings&);

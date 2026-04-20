@@ -162,3 +162,50 @@ TEST_CASE("parser: source name appears in #line directives", "[gsl][parser]") {
   auto r = parse("int x;", "shaders/mesh.vert.gsl");
   CHECK(contains(r.body, "#line 1 \"shaders/mesh.vert.gsl\""));
 }
+
+TEST_CASE("parser: single 'in' stage var extracted", "[gsl][parser]") {
+  auto r = parse("in vec3 position;");
+  REQUIRE(r.ins.size() == 1);
+  CHECK(r.outs.empty());
+  CHECK(r.ins[0].direction     == grf::gsl::StageDirection::In);
+  CHECK(r.ins[0].type          == "vec3");
+  CHECK(r.ins[0].name          == "position");
+  CHECK(r.ins[0].interpolation == "");
+}
+
+TEST_CASE("parser: single 'out' stage var extracted", "[gsl][parser]") {
+  auto r = parse("out vec4 color;");
+  REQUIRE(r.outs.size() == 1);
+  CHECK(r.ins.empty());
+  CHECK(r.outs[0].direction == grf::gsl::StageDirection::Out);
+  CHECK(r.outs[0].type      == "vec4");
+  CHECK(r.outs[0].name      == "color");
+}
+
+TEST_CASE("parser: interpolation qualifier captured with stage var", "[gsl][parser]") {
+  auto r = parse("flat in int materialId;");
+  REQUIRE(r.ins.size() == 1);
+  CHECK(r.ins[0].interpolation == "flat");
+  CHECK(r.ins[0].type          == "int");
+  CHECK(r.ins[0].name          == "materialId");
+}
+
+TEST_CASE("parser: in/out inside function parameters passes through", "[gsl][parser]") {
+  auto r = parse("vec3 blend(in vec3 a, out vec3 b) { b = a; return a; }");
+  CHECK(r.ins.empty());
+  CHECK(r.outs.empty());
+  CHECK(contains(r.body, "vec3 blend(in vec3 a, out vec3 b)"));
+}
+
+TEST_CASE("parser: multiple in/out stage vars preserve declaration order", "[gsl][parser]") {
+  auto r = parse(
+    "in vec3 position;\n"
+    "in vec3 normal;\n"
+    "out vec4 color;\n"
+  );
+  REQUIRE(r.ins.size()  == 2);
+  REQUIRE(r.outs.size() == 1);
+  CHECK(r.ins[0].name  == "position");
+  CHECK(r.ins[1].name  == "normal");
+  CHECK(r.outs[0].name == "color");
+}

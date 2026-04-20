@@ -45,16 +45,32 @@ std::string Assembler::assemble() const {
         out += '\n';
     }
     for (const auto& b : m_parsed.buffers) {
-      out += std::format("  uint64_t grf_addr_{};\n", b.instanceName);
+      out += std::format("  {} {};\n", b.typeName, b.instanceName);
     }
     out += "};\n\n";
   }
 
-  for (const auto& b : m_parsed.buffers) {
-    out += std::format("#define {} {}(grf_addr_{})\n",
-                       b.instanceName, b.typeName, b.instanceName);
+  uint32_t inLoc = 0;
+  for (const auto& v : m_parsed.ins) {
+    if (v.interpolation.empty())
+      out += std::format("layout(location = {}) in {} {};\n",
+                         inLoc++, v.type, v.name);
+    else
+      out += std::format("layout(location = {}) {} in {} {};\n",
+                         inLoc++, v.interpolation, v.type, v.name);
   }
-  if (!m_parsed.buffers.empty()) out += '\n';
+  if (!m_parsed.ins.empty()) out += '\n';
+
+  uint32_t outLoc = 0;
+  for (const auto& v : m_parsed.outs) {
+    if (v.interpolation.empty())
+      out += std::format("layout(location = {}) out {} {};\n",
+                         outLoc++, v.type, v.name);
+    else
+      out += std::format("layout(location = {}) {} out {} {};\n",
+                         outLoc++, v.interpolation, v.type, v.name);
+  }
+  if (!m_parsed.outs.empty()) out += '\n';
 
   out += m_parsed.body;
 

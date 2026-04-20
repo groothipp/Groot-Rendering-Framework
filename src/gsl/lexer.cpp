@@ -155,10 +155,15 @@ TokenData Lexer::lexIdentifierOrKeyword() {
   std::string_view text = m_source.substr(startOffset, m_cursor - startOffset);
 
   Token kind = Token::Identifier;
-  if      (text == "buffer")    kind = Token::Buffer;
-  else if (text == "readonly")  kind = Token::Readonly;
-  else if (text == "writeonly") kind = Token::Writeonly;
-  else if (text == "push")      kind = Token::Push;
+  if      (text == "buffer")        kind = Token::Buffer;
+  else if (text == "readonly")      kind = Token::Readonly;
+  else if (text == "writeonly")     kind = Token::Writeonly;
+  else if (text == "push")          kind = Token::Push;
+  else if (text == "in")            kind = Token::In;
+  else if (text == "out")           kind = Token::Out;
+  else if (text == "flat")          kind = Token::Flat;
+  else if (text == "smooth")        kind = Token::Smooth;
+  else if (text == "noperspective") kind = Token::Noperspective;
 
   return makeToken(kind, startOffset, startLoc);
 }

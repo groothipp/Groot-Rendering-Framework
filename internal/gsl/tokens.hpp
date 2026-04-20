@@ -21,6 +21,11 @@ enum class Token : int8_t {
   Readonly,
   Writeonly,
   Push,
+  In,
+  Out,
+  Flat,
+  Smooth,
+  Noperspective,
 
   Whitespace,
   Newline,

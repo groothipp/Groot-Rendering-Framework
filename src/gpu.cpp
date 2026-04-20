@@ -30,11 +30,17 @@ void GPU::run() {
   m_impl->m_device.waitIdle();
 }
 
+Shader GPU::compileShader(ShaderType type, const std::string& path) {
+  return m_impl->m_shaderManager->compile(type, path);
+}
+
 GPU::Impl::Impl(const Settings& settings) : m_settings(settings) {
   init();
 }
 
 GPU::Impl::~Impl() {
+  delete m_shaderManager;
+
   m_device.destroy();
 
   m_instance.destroySurfaceKHR(m_surface);
@@ -59,8 +65,10 @@ void GPU::Impl::init() {
   m_computeQueue.queue = m_device.getQueue(m_computeQueue.index, 0);
   m_transferQueue.queue = m_device.getQueue(m_transferQueue.index, 0);
 
+  m_shaderManager = new ShaderManager(m_device);
+
   vk::PhysicalDeviceProperties properties = m_gpu.getProperties();
-  log::general("Groot Rendering Framework\nvulkan {}.{}.{} on {}",
+  log::generic("Groot Rendering Framework\nvulkan {}.{}.{} on {}",
     VK_VERSION_MAJOR(properties.apiVersion),
     VK_VERSION_MINOR(properties.apiVersion),
     VK_VERSION_PATCH(properties.apiVersion),

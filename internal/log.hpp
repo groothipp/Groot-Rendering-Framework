@@ -8,7 +8,7 @@ namespace grf {
 namespace log {
 
 template <typename... Args>
-void general(std::format_string<Args...> fmt, Args... args) {
+void generic(std::format_string<Args...> fmt, Args... args) {
   std::println(stderr, "[GRF] {}", std::format(fmt, std::forward<Args>(args)...));
 }
 

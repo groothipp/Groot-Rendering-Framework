@@ -64,7 +64,8 @@ void Parser::emitLineDirective(std::string& body, uint32_t row) const {
 
 ParsedSource Parser::parse() {
   ParsedSource result;
-  m_cursor = 0;
+  m_cursor     = 0;
+  m_parenDepth = 0;
 
   emitLineDirective(result.body, 1);
 
@@ -109,7 +110,36 @@ ParsedSource Parser::parse() {
       GRF_PANIC("{}:{}:{}: 'push' is reserved; expected '{{' after",
                 m_sourceName, tok.loc.row, tok.loc.col);
     }
+    else if (m_parenDepth == 0 && (tok.token == Token::In || tok.token == Token::Out)) {
+      StageVar sv = parseStageVar({}, tok.loc);
+      if (sv.direction == StageDirection::In)  result.ins.push_back(sv);
+      else                                     result.outs.push_back(sv);
+
+      if (!atEnd()) emitLineDirective(result.body, peek().loc.row);
+      continue;
+    }
+    else if (m_parenDepth == 0 && (tok.token == Token::Flat
+                                || tok.token == Token::Smooth
+                                || tok.token == Token::Noperspective)) {
+      const TokenData* nxt = peekNextNonTrivia();
+      if (nxt && (nxt->token == Token::In || nxt->token == Token::Out)) {
+        std::string_view interp = tok.source;
+        SourceLoc        declLoc = tok.loc;
+        advance();           // consume interpolation qualifier
+        skipTrivia();
+        StageVar sv = parseStageVar(interp, declLoc);
+        if (sv.direction == StageDirection::In)  result.ins.push_back(sv);
+        else                                     result.outs.push_back(sv);
+
+        if (!atEnd()) emitLineDirective(result.body, peek().loc.row);
+        continue;
+      }
+      result.body += tok.source;
+      advance();
+    }
     else {
+      if      (tok.token == Token::LParen) m_parenDepth++;
+      else if (tok.token == Token::RParen) m_parenDepth--;
       result.body += tok.source;
       advance();
     }
@@ -218,6 +248,31 @@ PushBlock Parser::parsePushBlock() {
   return PushBlock{
     .body = body,
     .loc  = loc,
+  };
+}
+
+StageVar Parser::parseStageVar(std::string_view interpolation, SourceLoc declLoc) {
+  const TokenData& dirTok = peek();
+  StageDirection direction = dirTok.token == Token::In ? StageDirection::In : StageDirection::Out;
+  advance();
+
+  skipTrivia();
+  const TokenData& typeTok = expect(Token::Identifier, "stage variable type");
+  std::string_view type = typeTok.source;
+
+  skipTrivia();
+  const TokenData& nameTok = expect(Token::Identifier, "stage variable name");
+  std::string_view name = nameTok.source;
+
+  skipTrivia();
+  expect(Token::Semicolon, "';' after stage variable");
+
+  return StageVar{
+    .direction     = direction,
+    .interpolation = interpolation,
+    .type          = type,
+    .name          = name,
+    .loc           = declLoc,
   };
 }
 

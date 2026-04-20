@@ -72,13 +72,13 @@ TEST_CASE("assembler: writeonly buffer rewritten as buffer_reference", "[gsl][as
   CHECK(contains(out, "layout(buffer_reference, std430) writeonly buffer Output"));
 }
 
-TEST_CASE("assembler: buffer presence adds BDA field to push block", "[gsl][assembler]") {
+TEST_CASE("assembler: buffer presence adds buffer-reference field to push block", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer Vertices { vec3 pos[]; } verts;\n"
     "void main() {}"
   );
   CHECK(contains(out, "layout(push_constant, std430) uniform GrfPushBlock"));
-  CHECK(contains(out, "uint64_t grf_addr_verts;"));
+  CHECK(contains(out, "Vertices verts;"));
 }
 
 TEST_CASE("assembler: push block uses anonymous instance for global field access", "[gsl][assembler]") {
@@ -94,37 +94,37 @@ TEST_CASE("assembler: push block uses anonymous instance for global field access
   CHECK_FALSE(contains(out, "} GrfPushBlock"));
 }
 
-TEST_CASE("assembler: user push fields come before auto BDA fields", "[gsl][assembler]") {
+TEST_CASE("assembler: user push fields come before auto buffer-reference fields", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer V { int x; } v;\n"
     "push { uint idx; };\n"
     "void main() {}"
   );
   auto userFieldPos = indexOf(out, "uint idx;");
-  auto bdaFieldPos  = indexOf(out, "uint64_t grf_addr_v;");
+  auto bufFieldPos  = indexOf(out, "V v;");
   REQUIRE(userFieldPos != std::string::npos);
-  REQUIRE(bdaFieldPos  != std::string::npos);
-  CHECK(userFieldPos < bdaFieldPos);
+  REQUIRE(bufFieldPos  != std::string::npos);
+  CHECK(userFieldPos < bufFieldPos);
 }
 
-TEST_CASE("assembler: auto-global emitted as #define per buffer", "[gsl][assembler]") {
+TEST_CASE("assembler: buffer instance becomes a push-block field directly", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer Vertices { vec3 pos[]; } verts;\n"
     "void main() {}"
   );
-  CHECK(contains(out, "#define verts Vertices(grf_addr_verts)"));
+  CHECK(contains(out, "Vertices verts;"));
+  CHECK_FALSE(contains(out, "#define"));
+  CHECK_FALSE(contains(out, "uint64_t"));
 }
 
-TEST_CASE("assembler: multiple buffers each get their own define", "[gsl][assembler]") {
+TEST_CASE("assembler: multiple buffers each get their own push-block field", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer A { int x; } a;\n"
     "writeonly buffer B { int y; } b;\n"
     "void main() {}"
   );
-  CHECK(contains(out, "#define a A(grf_addr_a)"));
-  CHECK(contains(out, "#define b B(grf_addr_b)"));
-  CHECK(contains(out, "uint64_t grf_addr_a;"));
-  CHECK(contains(out, "uint64_t grf_addr_b;"));
+  CHECK(contains(out, "A a;"));
+  CHECK(contains(out, "B b;"));
 }
 
 TEST_CASE("assembler: user body appears after framework prelude", "[gsl][assembler]") {
@@ -132,11 +132,11 @@ TEST_CASE("assembler: user body appears after framework prelude", "[gsl][assembl
     "readonly buffer V { int x; } v;\n"
     "void main() { int y = 0; }"
   );
-  auto preludeEnd = indexOf(out, "#define v V(grf_addr_v)");
-  auto bodyStart  = indexOf(out, "void main()");
-  REQUIRE(preludeEnd != std::string::npos);
-  REQUIRE(bodyStart  != std::string::npos);
-  CHECK(preludeEnd < bodyStart);
+  auto pushBlockPos = indexOf(out, "uniform GrfPushBlock");
+  auto bodyStart    = indexOf(out, "void main()");
+  REQUIRE(pushBlockPos != std::string::npos);
+  REQUIRE(bodyStart    != std::string::npos);
+  CHECK(pushBlockPos < bodyStart);
 }
 
 TEST_CASE("assembler: parser's #line directives preserved in body", "[gsl][assembler]") {
@@ -151,6 +151,38 @@ TEST_CASE("assembler: parser's #line directives preserved in body", "[gsl][assem
   CHECK(contains(out, "#line 3 \"shaders/mesh.gsl\""));
 }
 
+TEST_CASE("assembler: single 'in' gets location 0", "[gsl][assembler]") {
+  auto out = assembleFrom("in vec3 position;\nvoid main() {}");
+  CHECK(contains(out, "layout(location = 0) in vec3 position;"));
+}
+
+TEST_CASE("assembler: in and out counters are independent", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "in vec3 position;\n"
+    "out vec4 color;\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "layout(location = 0) in vec3 position;"));
+  CHECK(contains(out, "layout(location = 0) out vec4 color;"));
+}
+
+TEST_CASE("assembler: multiple ins get increasing locations", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "in vec3 position;\n"
+    "in vec3 normal;\n"
+    "in vec2 uv;\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "layout(location = 0) in vec3 position;"));
+  CHECK(contains(out, "layout(location = 1) in vec3 normal;"));
+  CHECK(contains(out, "layout(location = 2) in vec2 uv;"));
+}
+
+TEST_CASE("assembler: interpolation qualifier emitted with layout", "[gsl][assembler]") {
+  auto out = assembleFrom("flat in int materialId;\nvoid main() {}");
+  CHECK(contains(out, "layout(location = 0) flat in int materialId;"));
+}
+
 TEST_CASE("assembler: full integration - buffer + push + body", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer Vertices { vec3 pos[]; } verts;\n"
@@ -163,7 +195,6 @@ TEST_CASE("assembler: full integration - buffer + push + body", "[gsl][assembler
   CHECK(contains(out, "layout(buffer_reference, std430) readonly buffer Vertices"));
   CHECK(contains(out, "uniform GrfPushBlock"));
   CHECK(contains(out, "uint idx;"));
-  CHECK(contains(out, "uint64_t grf_addr_verts;"));
-  CHECK(contains(out, "#define verts Vertices(grf_addr_verts)"));
+  CHECK(contains(out, "Vertices verts;"));
   CHECK(contains(out, "gl_Position = vec4(verts.pos[idx], 1.0);"));
 }

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "./enums.hpp"
 #include "./structs.hpp"
+#include "./shader.hpp"
 
 #include <memory>
 
@@ -15,6 +17,7 @@ public:
   ~GPU();
 
   void run();
+  Shader compileShader(ShaderType, const std::string&);
 };
 
 }

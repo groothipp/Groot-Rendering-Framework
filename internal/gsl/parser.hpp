@@ -25,9 +25,21 @@ struct PushBlock {
   SourceLoc        loc;
 };
 
+enum class StageDirection { In, Out };
+
+struct StageVar {
+  StageDirection   direction;
+  std::string_view interpolation;  // "flat" | "smooth" | "noperspective" | empty
+  std::string_view type;
+  std::string_view name;
+  SourceLoc        loc;
+};
+
 struct ParsedSource {
   std::vector<BufferDecl>  buffers;
   std::optional<PushBlock> push;
+  std::vector<StageVar>    ins;
+  std::vector<StageVar>    outs;
   std::string              body;
 };
 
@@ -35,7 +47,8 @@ class Parser {
   std::span<const TokenData> m_tokens;
   std::string_view           m_source;
   std::string_view           m_sourceName;
-  std::size_t                m_cursor = 0;
+  std::size_t                m_cursor     = 0;
+  int                        m_parenDepth = 0;
 
 public:
   Parser(std::span<const TokenData> tokens, std::string_view source, std::string_view sourceName = "<shader>");
@@ -52,6 +65,7 @@ private:
 
   BufferDecl parseBufferDecl();
   PushBlock  parsePushBlock();
+  StageVar   parseStageVar(std::string_view interpolation, SourceLoc declLoc);
 
   void emitLineDirective(std::string& body, uint32_t row) const;
 };

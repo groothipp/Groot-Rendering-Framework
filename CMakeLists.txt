@@ -28,7 +28,9 @@ set(GRF_PUBLIC_INCL_DIR ${CMAKE_SOURCE_DIR}/public)
 set(GRF_INTERNAL_INCL_DIR ${CMAKE_SOURCE_DIR}/internal)
 
 set(GRF_PUBLIC_HEADERS
+  ${GRF_PUBLIC_INCL_DIR}/enums.hpp
   ${GRF_PUBLIC_INCL_DIR}/gpu.hpp
+  ${GRF_PUBLIC_INCL_DIR}/shader.hpp
   ${GRF_PUBLIC_INCL_DIR}/structs.hpp
 )
 
@@ -39,6 +41,7 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/gsl/tokens.hpp
   ${GRF_INTERNAL_INCL_DIR}/gpu.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
+  ${GRF_INTERNAL_INCL_DIR}/shader_manager.hpp
   ${GRF_INTERNAL_INCL_DIR}/structs.hpp
 )
 
@@ -47,6 +50,8 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/gsl/lexer.cpp
   ${GRF_SOURCE_DIR}/gsl/parser.cpp
   ${GRF_SOURCE_DIR}/gpu.cpp
+  ${GRF_SOURCE_DIR}/shader.cpp
+  ${GRF_SOURCE_DIR}/shader_manager.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
 )
 
@@ -100,7 +105,7 @@ if(GRF_MAKE_TESTS)
     ${TEST_SOURCE_DIR}/gsl/assembler.cpp
     ${TEST_SOURCE_DIR}/gsl/lexer.cpp
     ${TEST_SOURCE_DIR}/gsl/parser.cpp
-    ${TEST_SOURCE_DIR}/render.cpp
+    ${TEST_SOURCE_DIR}/shaders.cpp
   )
 
   add_executable(test ${TEST_SOURCES})
