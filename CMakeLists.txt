@@ -33,11 +33,19 @@ set(GRF_PUBLIC_HEADERS
 )
 
 set(GRF_INTERNAL_HEADERS
+  ${GRF_INTERNAL_INCL_DIR}/gsl/assembler.hpp
+  ${GRF_INTERNAL_INCL_DIR}/gsl/lexer.hpp
+  ${GRF_INTERNAL_INCL_DIR}/gsl/parser.hpp
+  ${GRF_INTERNAL_INCL_DIR}/gsl/tokens.hpp
   ${GRF_INTERNAL_INCL_DIR}/gpu.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
+  ${GRF_INTERNAL_INCL_DIR}/structs.hpp
 )
 
 set(GRF_SOURCES
+  ${GRF_SOURCE_DIR}/gsl/assembler.cpp
+  ${GRF_SOURCE_DIR}/gsl/lexer.cpp
+  ${GRF_SOURCE_DIR}/gsl/parser.cpp
   ${GRF_SOURCE_DIR}/gpu.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
 )
@@ -89,7 +97,10 @@ if(GRF_MAKE_TESTS)
   set(TEST_SOURCE_DIR ${CMAKE_SOURCE_DIR}/tests)
 
   set(TEST_SOURCES
-    ${TEST_SOURCE_DIR}/end_to_end.cpp
+    ${TEST_SOURCE_DIR}/gsl/assembler.cpp
+    ${TEST_SOURCE_DIR}/gsl/lexer.cpp
+    ${TEST_SOURCE_DIR}/gsl/parser.cpp
+    ${TEST_SOURCE_DIR}/render.cpp
   )
 
   add_executable(test ${TEST_SOURCES})

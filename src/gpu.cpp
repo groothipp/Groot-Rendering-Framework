@@ -69,7 +69,7 @@ void GPU::Impl::init() {
 }
 
 void GPU::Impl::createWindow() {
-  if (!glfwInit()) panic("Failed to initialize GLFW");
+  if (!glfwInit()) GRF_PANIC("Failed to initialize GLFW");
 
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -77,7 +77,7 @@ void GPU::Impl::createWindow() {
 
   auto [width, height] = m_settings.windowSize;
   m_window = glfwCreateWindow(width, height, m_settings.windowTitle.c_str(), nullptr, nullptr);
-  if (!m_window) panic("Failed to create window");
+  if (!m_window) GRF_PANIC("Failed to create window");
 }
 
 void GPU::Impl::createInstance() {
@@ -127,7 +127,7 @@ void GPU::Impl::createInstance() {
 void GPU::Impl::createSurface() {
   vk::SurfaceKHR::CType cSurface;
   if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &cSurface) != VK_SUCCESS)
-    panic("Failed to create surface");
+    GRF_PANIC("Failed to create surface");
 
   m_surface = vk::SurfaceKHR(cSurface);
 }
@@ -179,7 +179,7 @@ void GPU::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
   }
 
   if (m_gpu == nullptr)
-    panic("No supported GPU found");
+    GRF_PANIC("No supported GPU found");
 }
 
 void GPU::Impl::getQueueFamilyIndices()  {
