@@ -7,5 +7,5 @@ readonly buffer World {
 in vec3 _Position;
 
 void main() {
-  gl_Position = _World.proj * _World.view * _World.model * vec4(_Position, 1.0);
+  gl_Position = _World.proj * _World.view * vec4(_Position, 1.0);
 }

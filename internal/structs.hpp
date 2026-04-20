@@ -11,4 +11,10 @@ struct Queue {
   vk::Queue queue = nullptr;
 };
 
+struct CacheRecord {
+  uint64_t mtime = 0;
+  uint64_t size = 0;
+  std::string bin = "";
+};
+
 }
