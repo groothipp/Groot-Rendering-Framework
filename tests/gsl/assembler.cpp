@@ -42,8 +42,9 @@ TEST_CASE("assembler: descriptor heap bindings emitted", "[gsl][assembler]") {
   auto out = assembleFrom("");
   CHECK(contains(out, "grf_Tex2D[]"));
   CHECK(contains(out, "grf_Tex3D[]"));
-  CHECK(contains(out, "grf_TexCube[]"));
-  CHECK(contains(out, "grf_StorageImg2D[]"));
+  CHECK(contains(out, "grf_Cubemap[]"));
+  CHECK(contains(out, "grf_Img2D[]"));
+  CHECK(contains(out, "grf_Img3D[]"));
   CHECK(contains(out, "grf_Sampler[]"));
   CHECK(contains(out, "set = 0"));
 }

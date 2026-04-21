@@ -20,9 +20,8 @@ ShaderManager::ShaderManager(vk::Device& device) : m_device(device) {
 }
 
 ShaderManager::~ShaderManager() {
-  for (auto& [path, module] : m_shaders)
-    m_device.destroyShaderModule(module);
-  saveCache();
+  if (!m_shaders.empty())
+    destroy();
 }
 
 const vk::ShaderModule& ShaderManager::getModule(const Shader& shader) const {
@@ -82,6 +81,16 @@ Shader ShaderManager::compile(ShaderType type, const std::string& path) {
   log::success("{}", msg);
 
   return Shader(type, path);
+}
+
+void ShaderManager::destroy() {
+  for (auto& [path, module] : m_shaders)
+    m_device.destroyShaderModule(module);
+
+  saveCache();
+
+  m_shaders.clear();
+  m_cache.clear();
 }
 
 std::string ShaderManager::stringify(std::ifstream& file) const {

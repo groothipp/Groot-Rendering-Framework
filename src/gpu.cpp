@@ -1,5 +1,10 @@
+#include "internal/allocator.hpp"
+#include "internal/descriptor_heap.hpp"
 #include "internal/log.hpp"
 #include "internal/gpu.hpp"
+
+#include "public/enums.hpp"
+#include "vulkan/vulkan.hpp"
 
 #include <vulkan/vulkan_beta.h>
 
@@ -34,23 +39,180 @@ Shader GPU::compileShader(ShaderType type, const std::string& path) {
   return m_impl->m_shaderManager->compile(type, path);
 }
 
+Buffer GPU::createBuffer(BufferIntent intent, std::size_t size) {
+  return m_impl->m_allocator->allocateBuffer(size, intent);
+}
+
+Tex2D GPU::createTex2D(Format format, uint32_t width, uint32_t height) {
+  auto impl = m_impl->m_allocator->allocateImage(
+    vk::ImageType::e2D,
+    static_cast<vk::Format>(format),
+    vk::ImageUsageFlagBits::eSampled       |
+      vk::ImageUsageFlagBits::eTransferSrc |
+      vk::ImageUsageFlagBits::eTransferDst,
+    width,
+    height
+  );
+
+  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image = impl->m_image,
+    .viewType = vk::ImageViewType::e2D,
+    .format = impl->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .levelCount = 1,
+      .layerCount = 1
+    }
+  });
+
+  m_impl->m_descriptorHeap->addTex2D(impl);
+
+  return Tex2D(impl);
+}
+
+Tex3D GPU::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+  auto impl = m_impl->m_allocator->allocateImage(
+    vk::ImageType::e3D,
+    static_cast<vk::Format>(format),
+    vk::ImageUsageFlagBits::eSampled        |
+      vk::ImageUsageFlagBits::eTransferSrc  |
+      vk::ImageUsageFlagBits::eTransferDst,
+    width,
+    height,
+    depth
+  );
+
+  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image = impl->m_image,
+    .viewType = vk::ImageViewType::e3D,
+    .format = impl->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .levelCount = 1,
+      .layerCount = 1
+    }
+  });
+
+  m_impl->m_descriptorHeap->addTex3D(impl);
+
+  return Tex3D(impl);
+}
+
+Cubemap GPU::createCubemap(Format format, uint32_t width, uint32_t height) {
+  auto impl = m_impl->m_allocator->allocateCubemap(
+    static_cast<vk::Format>(format),
+    width,
+    height
+  );
+
+  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image = impl->m_image,
+    .viewType = vk::ImageViewType::eCube,
+    .format = impl->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .levelCount = 1,
+      .layerCount = 6
+    }
+  });
+
+  m_impl->m_descriptorHeap->addCubemap(impl);
+
+  return Cubemap(impl);
+}
+
+Img2D GPU::createImg2D(Format format, uint32_t width, uint32_t height) {
+  auto impl = m_impl->m_allocator->allocateImage(
+    vk::ImageType::e2D,
+    static_cast<vk::Format>(format),
+    vk::ImageUsageFlagBits::eSampled       |
+      vk::ImageUsageFlagBits::eTransferSrc |
+      vk::ImageUsageFlagBits::eTransferDst,
+    width,
+    height
+  );
+
+  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image = impl->m_image,
+    .viewType = vk::ImageViewType::e2D,
+    .format = impl->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .levelCount = 1,
+      .layerCount = 1
+    }
+  });
+
+  m_impl->m_descriptorHeap->addImg2D(impl);
+
+  return Img2D(impl);
+}
+
+Img3D GPU::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+  auto impl = m_impl->m_allocator->allocateImage(
+    vk::ImageType::e3D,
+    static_cast<vk::Format>(format),
+    vk::ImageUsageFlagBits::eSampled        |
+      vk::ImageUsageFlagBits::eTransferSrc  |
+      vk::ImageUsageFlagBits::eTransferDst,
+    width,
+    height,
+    depth
+  );
+
+  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image = impl->m_image,
+    .viewType = vk::ImageViewType::e3D,
+    .format = impl->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .levelCount = 1,
+      .layerCount = 1
+    }
+  });
+
+  m_impl->m_descriptorHeap->addImg3D(impl);
+
+  return Img3D(impl);
+}
+
+Sampler GPU::createSampler(const SamplerSettings& settings) {
+  auto impl = m_impl->m_allocator->createSampler(settings);
+  m_impl->m_descriptorHeap->addSampler(impl);
+  return Sampler(impl);
+}
+
 GPU::Impl::Impl(const Settings& settings) : m_settings(settings) {
-  init();
-}
-
-GPU::Impl::~Impl() {
-  delete m_shaderManager;
-
-  m_device.destroy();
-
-  m_instance.destroySurfaceKHR(m_surface);
-  m_instance.destroy();
-
-  glfwDestroyWindow(m_window);
-  glfwTerminate();
-}
-
-void GPU::Impl::init() {
   std::vector<const char *> requiredExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
@@ -65,15 +227,33 @@ void GPU::Impl::init() {
   m_computeQueue.queue = m_device.getQueue(m_computeQueue.index, 0);
   m_transferQueue.queue = m_device.getQueue(m_transferQueue.index, 0);
 
-  m_shaderManager = new ShaderManager(m_device);
-
   vk::PhysicalDeviceProperties properties = m_gpu.getProperties();
-  log::generic("Groot Rendering Framework\nvulkan {}.{}.{} on {}",
+
+  m_allocator = std::make_unique<Allocator>(m_instance, m_gpu, m_device, properties.apiVersion);
+  m_descriptorHeap = std::make_unique<DescriptorHeap>(m_gpu, m_device);
+  m_shaderManager = std::make_unique<ShaderManager>(m_device);
+
+  log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
+    std::string(GRF_VERSION),
     VK_VERSION_MAJOR(properties.apiVersion),
     VK_VERSION_MINOR(properties.apiVersion),
     VK_VERSION_PATCH(properties.apiVersion),
     std::string(properties.deviceName)
   );
+}
+
+GPU::Impl::~Impl() {
+  m_shaderManager->destroy();
+  m_descriptorHeap->destroy();
+  m_allocator->destroy();
+
+  m_device.destroy();
+
+  m_instance.destroySurfaceKHR(m_surface);
+  m_instance.destroy();
+
+  glfwDestroyWindow(m_window);
+  glfwTerminate();
 }
 
 void GPU::Impl::createWindow() {
@@ -94,9 +274,9 @@ void GPU::Impl::createInstance() {
 
   vk::ApplicationInfo appInfo{
     .pApplicationName   = m_settings.windowTitle.c_str(),
-    .applicationVersion = VK_MAKE_API_VERSION(0, appMajor, appMinor, appPatch),
+    .applicationVersion = VK_MAKE_VERSION(appMajor, appMinor, appPatch),
     .pEngineName        = "Groot Rendering Framework",
-    .engineVersion      = VK_MAKE_API_VERSION(0, grfMajor, grfMinor, grfPatch),
+    .engineVersion      = VK_MAKE_VERSION(grfMajor, grfMinor, grfPatch),
     .apiVersion         = VK_API_VERSION_1_4
   };
 
@@ -165,7 +345,9 @@ void GPU::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
     const auto& f13 = featureChain.get<vk::PhysicalDeviceVulkan13Features>();
 
     if (
-      !f2.features.samplerAnisotropy                   ||
+      !f2.features.samplerAnisotropy                    ||
+      !f2.features.shaderStorageImageReadWithoutFormat  ||
+      !f2.features.shaderStorageImageWriteWithoutFormat ||
       !f12.bufferDeviceAddress                          ||
       !f12.timelineSemaphore                            ||
       !f12.descriptorIndexing                           ||
@@ -294,7 +476,9 @@ void GPU::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
   vk::PhysicalDeviceFeatures2 f2{
     .pNext = &f12,
     .features = {
-      .samplerAnisotropy = true
+      .samplerAnisotropy                    = true,
+      .shaderStorageImageReadWithoutFormat  = true,
+      .shaderStorageImageWriteWithoutFormat = true
     }
   };
 

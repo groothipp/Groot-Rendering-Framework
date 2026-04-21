@@ -14,9 +14,10 @@ constexpr std::string_view kHeader = R"(#version 460
 
 layout(set = 0, binding = 0) uniform texture2D   grf_Tex2D[];
 layout(set = 0, binding = 1) uniform texture3D   grf_Tex3D[];
-layout(set = 0, binding = 2) uniform textureCube grf_TexCube[];
-layout(set = 0, binding = 3) uniform image2D     grf_StorageImg2D[];
-layout(set = 0, binding = 4) uniform sampler     grf_Sampler[];
+layout(set = 0, binding = 2) uniform textureCube grf_Cubemap[];
+layout(set = 0, binding = 3) uniform image2D     grf_Img2D[];
+layout(set = 0, binding = 4) uniform image3D     grf_Img3D[];
+layout(set = 0, binding = 5) uniform sampler     grf_Sampler[];
 
 )";
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "internal/structs.hpp"
+#include "./structs.hpp"
+
 #include "public/enums.hpp"
 #include "public/shader.hpp"
 
@@ -32,6 +33,7 @@ public:
 
   const vk::ShaderModule& getModule(const Shader&) const;
   Shader compile(ShaderType, const std::string&);
+  void destroy();
 
 private:
   std::string stringify(std::ifstream&) const;
