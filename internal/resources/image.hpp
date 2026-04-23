@@ -3,7 +3,6 @@
 #include "public/image.hpp"
 #include "public/structs.hpp"
 
-#include <cstdint>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 

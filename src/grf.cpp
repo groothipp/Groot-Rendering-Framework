@@ -1,10 +1,9 @@
+#include "public/enums.hpp"
+
 #include "internal/allocator.hpp"
 #include "internal/descriptor_heap.hpp"
+#include "internal/grf.hpp"
 #include "internal/log.hpp"
-#include "internal/gpu.hpp"
-
-#include "public/enums.hpp"
-#include "vulkan/vulkan.hpp"
 
 #include <vulkan/vulkan_beta.h>
 
@@ -22,13 +21,13 @@ std::tuple<uint32_t, uint32_t, uint32_t> parseVersionString(const std::string& v
 
 namespace grf {
 
-GPU::GPU(const Settings& settings) {
+GRF::GRF(const Settings& settings) {
   m_impl = std::make_unique<Impl>(settings);
 }
 
-GPU::~GPU() = default;
+GRF::~GRF() = default;
 
-void GPU::run(std::function<void(double)> main) {
+void GRF::run(std::function<void(double)> main) {
   while (!glfwWindowShouldClose(m_impl->m_window)) {
     glfwPollEvents();
     m_impl->m_resourceManager->beginUpdates();
@@ -37,23 +36,23 @@ void GPU::run(std::function<void(double)> main) {
   m_impl->m_device.waitIdle();
 }
 
-void GPU::beginResourceUpdates() {
+void GRF::beginResourceUpdates() {
   m_impl->m_resourceManager->beginUpdates();
 }
 
-void GPU::waitForResourceUpdates() {
+void GRF::waitForResourceUpdates() {
   m_impl->m_resourceManager->waitForUpdates();
 }
 
-Shader GPU::compileShader(ShaderType type, const std::string& path) {
+Shader GRF::compileShader(ShaderType type, const std::string& path) {
   return m_impl->m_shaderManager->compile(type, path);
 }
 
-Buffer GPU::createBuffer(BufferIntent intent, std::size_t size) {
+Buffer GRF::createBuffer(BufferIntent intent, std::size_t size) {
   return m_impl->m_allocator->allocateBuffer(size, intent);
 }
 
-Tex2D GPU::createTex2D(Format format, uint32_t width, uint32_t height) {
+Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height) {
   auto impl = m_impl->m_allocator->allocateImage(
     vk::ImageType::e2D,
     static_cast<vk::Format>(format),
@@ -86,7 +85,7 @@ Tex2D GPU::createTex2D(Format format, uint32_t width, uint32_t height) {
   return Tex2D(impl);
 }
 
-Tex3D GPU::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
   auto impl = m_impl->m_allocator->allocateImage(
     vk::ImageType::e3D,
     static_cast<vk::Format>(format),
@@ -120,7 +119,7 @@ Tex3D GPU::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t 
   return Tex3D(impl);
 }
 
-Cubemap GPU::createCubemap(Format format, uint32_t width, uint32_t height) {
+Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
   auto impl = m_impl->m_allocator->allocateCubemap(
     static_cast<vk::Format>(format),
     width,
@@ -149,7 +148,7 @@ Cubemap GPU::createCubemap(Format format, uint32_t width, uint32_t height) {
   return Cubemap(impl);
 }
 
-Img2D GPU::createImg2D(Format format, uint32_t width, uint32_t height) {
+Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height) {
   auto impl = m_impl->m_allocator->allocateImage(
     vk::ImageType::e2D,
     static_cast<vk::Format>(format),
@@ -182,7 +181,7 @@ Img2D GPU::createImg2D(Format format, uint32_t width, uint32_t height) {
   return Img2D(impl);
 }
 
-Img3D GPU::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
   auto impl = m_impl->m_allocator->allocateImage(
     vk::ImageType::e3D,
     static_cast<vk::Format>(format),
@@ -216,13 +215,13 @@ Img3D GPU::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t 
   return Img3D(impl);
 }
 
-Sampler GPU::createSampler(const SamplerSettings& settings) {
+Sampler GRF::createSampler(const SamplerSettings& settings) {
   auto impl = m_impl->m_allocator->createSampler(settings);
   m_impl->m_descriptorHeap->addSampler(impl);
   return Sampler(impl);
 }
 
-GPU::Impl::Impl(const Settings& settings) : m_settings(settings) {
+GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   std::vector<const char *> requiredExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
@@ -255,7 +254,7 @@ GPU::Impl::Impl(const Settings& settings) : m_settings(settings) {
   );
 }
 
-GPU::Impl::~Impl() {
+GRF::Impl::~Impl() {
   m_resourceManager->destroy();
   m_shaderManager->destroy();
   m_descriptorHeap->destroy();
@@ -270,7 +269,7 @@ GPU::Impl::~Impl() {
   glfwTerminate();
 }
 
-void GPU::Impl::createWindow() {
+void GRF::Impl::createWindow() {
   if (!glfwInit()) GRF_PANIC("Failed to initialize GLFW");
 
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
@@ -282,7 +281,7 @@ void GPU::Impl::createWindow() {
   if (!m_window) GRF_PANIC("Failed to create window");
 }
 
-void GPU::Impl::createInstance() {
+void GRF::Impl::createInstance() {
   auto [grfMajor, grfMinor, grfPatch] = parseVersionString(GRF_VERSION);
   auto [appMajor, appMinor, appPatch] = parseVersionString(m_settings.applicationVersion);
 
@@ -326,7 +325,7 @@ void GPU::Impl::createInstance() {
   });
 }
 
-void GPU::Impl::createSurface() {
+void GRF::Impl::createSurface() {
   vk::SurfaceKHR::CType cSurface;
   if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &cSurface) != VK_SUCCESS)
     GRF_PANIC("Failed to create surface");
@@ -334,7 +333,7 @@ void GPU::Impl::createSurface() {
   m_surface = vk::SurfaceKHR(cSurface);
 }
 
-void GPU::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
+void GRF::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
   for (const auto& gpu : m_instance.enumeratePhysicalDevices()) {
     std::set<std::string> extensions;
     for (const auto& extension : gpu.enumerateDeviceExtensionProperties())
@@ -386,7 +385,7 @@ void GPU::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
     GRF_PANIC("No supported GPU found");
 }
 
-void GPU::Impl::getQueueFamilyIndices()  {
+void GRF::Impl::getQueueFamilyIndices()  {
   uint8_t graphics = 0xFF, compute = 0xFF, transfer = 0xFF;
   auto queueFamilies = m_gpu.getQueueFamilyProperties();
   for (uint8_t i = 0; i < queueFamilies.size(); ++i) {
@@ -433,7 +432,7 @@ void GPU::Impl::getQueueFamilyIndices()  {
   m_transferQueue.index = transfer;
 }
 
-void GPU::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
+void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
   const float queuePriority = 1.0f;
 
   std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos = {

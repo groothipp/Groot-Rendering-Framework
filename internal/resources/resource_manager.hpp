@@ -1,13 +1,17 @@
 #pragma once
 
-#include "./allocator.hpp"
-#include "./structs.hpp"
+#include "internal/allocator.hpp"
 
 #include <unordered_map>
 #include <future>
 #include <vector>
 
 namespace grf {
+
+struct Queue {
+  uint8_t index = 0xFF;
+  vk::Queue queue = nullptr;
+};
 
 class ResourceManager {
   using BufferUpdateMap = std::unordered_map<

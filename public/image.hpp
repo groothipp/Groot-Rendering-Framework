@@ -8,7 +8,7 @@ namespace grf {
 
 class Image {
   friend class Allocator;
-  friend class GPU;
+  friend class GRF;
   friend class DescriptorHeap;
 
   class Impl;
@@ -27,7 +27,7 @@ private:
 
 class Sampler {
   friend class Allocator;
-  friend class GPU;
+  friend class GRF;
   friend class DescriptorHeap;
 
   class Impl;

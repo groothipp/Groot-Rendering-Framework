@@ -1,10 +1,8 @@
+#include "internal/resources/buffer.hpp"
+#include "internal/resources/image.hpp"
+#include "internal/resources/resource_manager.hpp"
 #include "internal/allocator.hpp"
-#include "internal/buffer.hpp"
-#include "internal/image.hpp"
 #include "internal/log.hpp"
-#include "internal/resource_manager.hpp"
-#include <optional>
-
 
 namespace grf {
 

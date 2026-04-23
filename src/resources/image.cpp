@@ -1,6 +1,5 @@
-#include "internal/image.hpp"
+#include "internal/resources/image.hpp"
 #include "internal/log.hpp"
-#include "vulkan/vulkan.hpp"
 
 namespace grf {
 

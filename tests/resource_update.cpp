@@ -1,6 +1,4 @@
-#include "public/gpu.hpp"
-#include "public/buffer.hpp"
-#include "public/enums.hpp"
+#include "public/grf.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -20,14 +18,14 @@ struct Uniforms {
 }
 
 TEST_CASE("resource update: empty flush is a no-op", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   gpu.beginResourceUpdates();
   gpu.waitForResourceUpdates();
   SUCCEED();
 }
 
 TEST_CASE("resource update: single struct to host-visible buffer", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   grf::Buffer buf = gpu.createBuffer(grf::BufferIntent::FrequentUpdate, sizeof(Uniforms));
 
   Uniforms u{ .frame = 42, .time = 1.5f, .flags = -1 };
@@ -39,7 +37,7 @@ TEST_CASE("resource update: single struct to host-visible buffer", "[resource-up
 }
 
 TEST_CASE("resource update: single struct to device-local buffer", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   grf::Buffer buf = gpu.createBuffer(grf::BufferIntent::GPUOnly, sizeof(Uniforms));
 
   Uniforms u{ .frame = 0, .time = 0.0f, .flags = 0 };
@@ -51,7 +49,7 @@ TEST_CASE("resource update: single struct to device-local buffer", "[resource-up
 }
 
 TEST_CASE("resource update: span of trivially-copyable data", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const std::size_t count = 256;
   grf::Buffer buf = gpu.createBuffer(grf::BufferIntent::GPUOnly, sizeof(uint32_t) * count);
 
@@ -65,7 +63,7 @@ TEST_CASE("resource update: span of trivially-copyable data", "[resource-update]
 }
 
 TEST_CASE("resource update: temporary bytes survive until flush", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   grf::Buffer buf = gpu.createBuffer(grf::BufferIntent::GPUOnly, sizeof(Uniforms));
 
   buf.write(Uniforms{ .frame = 7, .time = 0.1f, .flags = 2 });
@@ -76,7 +74,7 @@ TEST_CASE("resource update: temporary bytes survive until flush", "[resource-upd
 }
 
 TEST_CASE("resource update: write with non-zero offset", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   grf::Buffer buf = gpu.createBuffer(grf::BufferIntent::GPUOnly, sizeof(uint32_t) * 16);
 
   uint32_t value = 99;
@@ -88,7 +86,7 @@ TEST_CASE("resource update: write with non-zero offset", "[resource-update]") {
 }
 
 TEST_CASE("resource update: mixed intents in single flush", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   grf::Buffer hostBuf = gpu.createBuffer(grf::BufferIntent::FrequentUpdate, sizeof(Uniforms));
   grf::Buffer devBuf  = gpu.createBuffer(grf::BufferIntent::GPUOnly,        sizeof(Uniforms));
 
@@ -101,7 +99,7 @@ TEST_CASE("resource update: mixed intents in single flush", "[resource-update]")
 }
 
 TEST_CASE("resource update: multiple begin+wait cycles", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   grf::Buffer buf = gpu.createBuffer(grf::BufferIntent::SingleUpdate, sizeof(uint32_t) * 16);
 
   std::array<uint32_t, 16> data{};
@@ -117,7 +115,7 @@ TEST_CASE("resource update: multiple begin+wait cycles", "[resource-update]") {
 }
 
 TEST_CASE("resource update: many buffers in one flush", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const std::size_t n = 8;
   std::vector<grf::Buffer> buffers;
   buffers.reserve(n);
@@ -140,7 +138,7 @@ TEST_CASE("resource update: many buffers in one flush", "[resource-update]") {
 }
 
 TEST_CASE("resource update: wait without any begin is safe", "[resource-update]") {
-  grf::GPU gpu;
+  grf::GRF gpu;
   gpu.waitForResourceUpdates();
   SUCCEED();
 }

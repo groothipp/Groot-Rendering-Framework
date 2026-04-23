@@ -11,13 +11,13 @@
 
 namespace grf {
 
-class GPU {
+class GRF {
   class Impl;
   std::unique_ptr<Impl> m_impl;
 
 public:
-  explicit GPU(const Settings& settings = Settings{});
-  ~GPU();
+  explicit GRF(const Settings& settings = Settings{});
+  ~GRF();
 
   void run(std::function<void(double)> main = [](double){});
   void beginResourceUpdates();

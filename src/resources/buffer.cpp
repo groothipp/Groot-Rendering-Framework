@@ -1,6 +1,6 @@
-#include "internal/buffer.hpp"
+#include "internal/resources/buffer.hpp"
+#include "internal/resources/resource_manager.hpp"
 #include "internal/log.hpp"
-#include "internal/resource_manager.hpp"
 
 namespace grf {
 

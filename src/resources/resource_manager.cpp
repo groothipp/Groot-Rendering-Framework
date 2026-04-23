@@ -1,6 +1,5 @@
-#include "internal/resource_manager.hpp"
+#include "internal/resources/resource_manager.hpp"
 #include "internal/log.hpp"
-#include "internal/structs.hpp"
 
 namespace grf {
 

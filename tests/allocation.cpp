@@ -1,11 +1,9 @@
-#include "public/gpu.hpp"
-#include "public/image.hpp"
-#include "public/structs.hpp"
+#include "public/grf.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const std::size_t bufferSize = sizeof(uint32_t) * 1000;
 
   SECTION( "frequent update intent" ) {
@@ -46,7 +44,7 @@ TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
 }
 
 TEST_CASE( "allocation: tex2D", "[allocation][tex2D]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
@@ -66,7 +64,7 @@ TEST_CASE( "allocation: tex2D", "[allocation][tex2D]" ) {
 }
 
 TEST_CASE( "allocation: tex3D", "[allocation][tex3D]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const uint32_t depth = 3;
@@ -87,7 +85,7 @@ TEST_CASE( "allocation: tex3D", "[allocation][tex3D]" ) {
 }
 
 TEST_CASE( "allocation: cubemap", "[allocation][cubemap]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
@@ -107,7 +105,7 @@ TEST_CASE( "allocation: cubemap", "[allocation][cubemap]" ) {
 }
 
 TEST_CASE( "allocation: img2D", "[allocation][img2D]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
@@ -127,7 +125,7 @@ TEST_CASE( "allocation: img2D", "[allocation][img2D]" ) {
 }
 
 TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const uint32_t depth = 3;
@@ -148,7 +146,7 @@ TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
 }
 
 TEST_CASE( "allocation: sampler", "[allocation][sampler]" ) {
-  grf::GPU gpu;
+  grf::GRF gpu;
   const grf::SamplerSettings settings{
     .magFilter            = grf::Filter::Linear,
     .minFilter            = grf::Filter::Nearest,

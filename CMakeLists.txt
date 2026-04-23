@@ -30,7 +30,7 @@ set(GRF_INTERNAL_INCL_DIR ${CMAKE_SOURCE_DIR}/internal)
 set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/buffer.hpp
   ${GRF_PUBLIC_INCL_DIR}/enums.hpp
-  ${GRF_PUBLIC_INCL_DIR}/gpu.hpp
+  ${GRF_PUBLIC_INCL_DIR}/grf.hpp
   ${GRF_PUBLIC_INCL_DIR}/image.hpp
   ${GRF_PUBLIC_INCL_DIR}/shader.hpp
   ${GRF_PUBLIC_INCL_DIR}/structs.hpp
@@ -40,30 +40,29 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/gsl/assembler.hpp
   ${GRF_INTERNAL_INCL_DIR}/gsl/lexer.hpp
   ${GRF_INTERNAL_INCL_DIR}/gsl/parser.hpp
+  ${GRF_INTERNAL_INCL_DIR}/gsl/shader_manager.hpp
   ${GRF_INTERNAL_INCL_DIR}/gsl/tokens.hpp
+  ${GRF_INTERNAL_INCL_DIR}/resources/buffer.hpp
+  ${GRF_INTERNAL_INCL_DIR}/resources/image.hpp
+  ${GRF_INTERNAL_INCL_DIR}/resources/resource_manager.hpp
   ${GRF_INTERNAL_INCL_DIR}/allocator.hpp
-  ${GRF_INTERNAL_INCL_DIR}/buffer.hpp
   ${GRF_INTERNAL_INCL_DIR}/descriptor_heap.hpp
-  ${GRF_INTERNAL_INCL_DIR}/gpu.hpp
-  ${GRF_INTERNAL_INCL_DIR}/image.hpp
+  ${GRF_INTERNAL_INCL_DIR}/grf.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
-  ${GRF_INTERNAL_INCL_DIR}/resource_manager.hpp
-  ${GRF_INTERNAL_INCL_DIR}/shader_manager.hpp
-  ${GRF_INTERNAL_INCL_DIR}/structs.hpp
 )
 
 set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/gsl/assembler.cpp
   ${GRF_SOURCE_DIR}/gsl/lexer.cpp
   ${GRF_SOURCE_DIR}/gsl/parser.cpp
+  ${GRF_SOURCE_DIR}/gsl/shader.cpp
+  ${GRF_SOURCE_DIR}/gsl/shader_manager.cpp
+  ${GRF_SOURCE_DIR}/resources/buffer.cpp
+  ${GRF_SOURCE_DIR}/resources/image.cpp
+  ${GRF_SOURCE_DIR}/resources/resource_manager.cpp
   ${GRF_SOURCE_DIR}/allocator.cpp
-  ${GRF_SOURCE_DIR}/buffer.cpp
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
-  ${GRF_SOURCE_DIR}/gpu.cpp
-  ${GRF_SOURCE_DIR}/image.cpp
-  ${GRF_SOURCE_DIR}/resource_manager.cpp
-  ${GRF_SOURCE_DIR}/shader.cpp
-  ${GRF_SOURCE_DIR}/shader_manager.cpp
+  ${GRF_SOURCE_DIR}/grf.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
 )
 
@@ -114,10 +113,10 @@ if(GRF_MAKE_TESTS)
   set(TEST_SOURCE_DIR ${CMAKE_SOURCE_DIR}/tests)
 
   set(TEST_SOURCES
-    ${TEST_SOURCE_DIR}/gsl/assembler.cpp
-    ${TEST_SOURCE_DIR}/gsl/lexer.cpp
-    ${TEST_SOURCE_DIR}/gsl/parser.cpp
     ${TEST_SOURCE_DIR}/allocation.cpp
+    ${TEST_SOURCE_DIR}/assembler.cpp
+    ${TEST_SOURCE_DIR}/lexer.cpp
+    ${TEST_SOURCE_DIR}/parser.cpp
     ${TEST_SOURCE_DIR}/resource_update.cpp
     ${TEST_SOURCE_DIR}/shaders.cpp
   )

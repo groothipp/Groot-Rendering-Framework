@@ -1,12 +1,11 @@
 #pragma once
 
-#include "./structs.hpp"
-#include "./shader_manager.hpp"
-#include "./allocator.hpp"
-#include "./descriptor_heap.hpp"
-#include "./resource_manager.hpp"
+#include "public/grf.hpp"
 
-#include "public/gpu.hpp"
+#include "internal/gsl/shader_manager.hpp"
+#include "internal/resources/resource_manager.hpp"
+#include "internal/allocator.hpp"
+#include "internal/descriptor_heap.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
@@ -15,7 +14,7 @@
 
 namespace grf {
 
-class GPU::Impl {
+class GRF::Impl {
 public:
   Settings                          m_settings;
 

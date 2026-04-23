@@ -1,9 +1,8 @@
 #include "internal/gsl/assembler.hpp"
 #include "internal/gsl/lexer.hpp"
 #include "internal/gsl/parser.hpp"
+#include "internal/gsl/shader_manager.hpp"
 #include "internal/log.hpp"
-#include "internal/shader_manager.hpp"
-#include "internal/structs.hpp"
 
 #include "external/nlohmann/json.hpp"
 

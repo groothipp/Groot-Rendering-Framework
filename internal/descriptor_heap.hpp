@@ -1,6 +1,6 @@
 #pragma once
 
-#include "./image.hpp"
+#include "internal/resources/image.hpp"
 
 #include <vulkan/vulkan.hpp>
 

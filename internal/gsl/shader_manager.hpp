@@ -1,7 +1,5 @@
 #pragma once
 
-#include "./structs.hpp"
-
 #include "public/enums.hpp"
 #include "public/shader.hpp"
 
@@ -13,6 +11,12 @@
 #include <random>
 
 namespace grf {
+
+struct CacheRecord {
+  uint64_t mtime = 0;
+  uint64_t size = 0;
+  std::string bin = "";
+};
 
 class ShaderManager {
   static constexpr std::string_view g_cacheDir = ".cache/grf";

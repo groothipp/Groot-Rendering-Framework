@@ -1,7 +1,7 @@
 #pragma once
 
-#include "./buffer.hpp"
-#include "./image.hpp"
+#include "internal/resources/buffer.hpp"
+#include "internal/resources/image.hpp"
 
 #include "public/structs.hpp"
 
