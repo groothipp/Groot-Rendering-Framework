@@ -1,5 +1,6 @@
 #include "internal/buffer.hpp"
 #include "internal/log.hpp"
+#include "internal/resource_manager.hpp"
 
 namespace grf {
 
@@ -31,15 +32,23 @@ uint64_t Buffer::address() const {
   return ptr->m_address;
 }
 
+void Buffer::scheduleWrite(std::span<const std::byte> data, std::size_t offset) {
+  auto ptr = m_impl.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to schedule buffer write for invalid buffer");
+  ptr->m_resourceManager->writeBuffer(ptr->m_address, data, offset);
+}
+
 Buffer::Impl::Impl(
-  VmaAllocation alloc, vk::Buffer buffer, vk::DeviceAddress addr,
-  vk::DeviceSize size, BufferIntent intent
+  std::unique_ptr<ResourceManager>& resourceManager, VmaAllocation alloc,
+  vk::Buffer buffer, vk::DeviceAddress addr, vk::DeviceSize size, BufferIntent intent
 )
 : m_allocation(alloc),
   m_buffer(buffer),
   m_address(addr),
   m_size(size),
-  m_intent(intent)
+  m_intent(intent),
+  m_resourceManager(resourceManager)
 {}
 
 }

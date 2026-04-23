@@ -8,8 +8,12 @@
 
 namespace grf {
 
+class ResourceManager;
+
 class Buffer::Impl {
 public:
+  std::unique_ptr<ResourceManager>& m_resourceManager;
+
   VmaAllocation     m_allocation = nullptr;
   vk::Buffer        m_buffer = nullptr;
   vk::DeviceAddress m_address = 0x0;
@@ -17,7 +21,10 @@ public:
   BufferIntent      m_intent = BufferIntent::FrequentUpdate;
 
 public:
-  Impl(VmaAllocation, vk::Buffer, vk::DeviceAddress, vk::DeviceSize, BufferIntent);
+  Impl(
+    std::unique_ptr<ResourceManager>&, VmaAllocation, vk::Buffer,
+    vk::DeviceAddress, vk::DeviceSize, BufferIntent
+  );
 };
 
 }

@@ -5,33 +5,45 @@
 
 #include "public/structs.hpp"
 
-#include <cstdint>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
 #include <unordered_map>
+#include <optional>
+#include <mutex>
 
 namespace grf {
+
+class ResourceManager;
 
 class Allocator {
   using BufferMap = std::unordered_map<uint64_t, std::shared_ptr<Buffer::Impl>>;
   using ImageMap = std::unordered_map<uint64_t, std::shared_ptr<Image::Impl>>;
   using SamplerMap = std::unordered_map<uint64_t, std::shared_ptr<Sampler::Impl>>;
+  using StagingMap = std::unordered_map<uint64_t, std::pair<VmaAllocation, vk::Buffer>>;
 
-  bool          m_anisotropySupport = false;
-  float         m_maxAnisotropy = 1.0;
+  std::unique_ptr<ResourceManager>& m_resourceManager;
+  std::mutex                        m_mutex;
 
-  vk::Device&   m_device;
-  VmaAllocator  m_allocator = nullptr;
-  BufferMap     m_buffers;
-  ImageMap      m_images;
-  SamplerMap    m_samplers;
+  bool                              m_anisotropySupport = false;
+  float                             m_maxAnisotropy = 1.0;
 
-  uint64_t      m_nextImageID = 0;
-  uint64_t      m_nextSamplerID = 0;
+  vk::Device&                       m_device;
+  VmaAllocator                      m_allocator = nullptr;
+  BufferMap                         m_buffers;
+  ImageMap                          m_images;
+  SamplerMap                        m_samplers;
+  StagingMap                        m_staging;
+
+  uint64_t                          m_nextImageID = 0;
+  uint64_t                          m_nextSamplerID = 0;
+  uint64_t                          m_nextStagingBuffer = 0;
 
 public:
-  Allocator(const vk::Instance&, const vk::PhysicalDevice&, vk::Device&, uint32_t);
+  Allocator(
+    const vk::Instance&, const vk::PhysicalDevice&, vk::Device&,
+    uint32_t, std::unique_ptr<ResourceManager>&
+  );
   ~Allocator();
 
   void destroy();
@@ -43,8 +55,16 @@ public:
   std::shared_ptr<Image::Impl> allocateCubemap(vk::Format, uint32_t, uint32_t);
   std::shared_ptr<Sampler::Impl> createSampler(const SamplerSettings&);
 
+  std::optional<std::pair<vk::Buffer&, vk::Buffer&>> writeBuffer(
+    vk::DeviceAddress, std::span<const std::byte>, std::size_t
+  );
+
+  void destroyStagingBuffers();
+
 private:
   std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> getVMAflags(BufferIntent) const;
+
+  vk::Buffer& createStagingBuffer(std::span<const std::byte>, std::size_t);
 };
 
 }

@@ -2,7 +2,9 @@
 #include "internal/buffer.hpp"
 #include "internal/image.hpp"
 #include "internal/log.hpp"
-#include "vulkan/vulkan.hpp"
+#include "internal/resource_manager.hpp"
+#include <optional>
+
 
 namespace grf {
 
@@ -10,8 +12,9 @@ Allocator::Allocator(
   const vk::Instance& instance,
   const vk::PhysicalDevice& gpu,
   vk::Device& device,
-  uint32_t apiVersion
-) : m_device(device) {
+  uint32_t apiVersion,
+  std::unique_ptr<ResourceManager>& resourceManager
+) : m_device(device), m_resourceManager(resourceManager) {
   VmaAllocatorCreateInfo createInfo{
     .flags            = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
     .physicalDevice   = gpu,
@@ -46,6 +49,11 @@ void Allocator::destroy() {
 
   for (auto& [id, sampler] : m_samplers)
     m_device.destroySampler(sampler->m_sampler);
+
+  for (auto& [id, allocInfo] : m_staging) {
+    auto [allocation, buffer] = allocInfo;
+    vmaDestroyBuffer(m_allocator, buffer, allocation);
+  }
 
   vmaDestroyAllocator(m_allocator);
 
@@ -89,6 +97,7 @@ Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
   vk::DeviceAddress address = m_device.getBufferAddress({ .buffer = buffer });
 
   auto impl = std::make_shared<Buffer::Impl>(
+    m_resourceManager,
     allocation,
     buffer,
     address,
@@ -96,7 +105,10 @@ Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
     intent
   );
 
-  m_buffers[address] = impl;
+  {
+    std::lock_guard<std::mutex> g(m_mutex);
+    m_buffers[address] = impl;
+  }
   return Buffer(impl);
 }
 
@@ -233,11 +245,50 @@ std::shared_ptr<Sampler::Impl> Allocator::createSampler(const SamplerSettings& s
   return impl;
 }
 
+std::optional<std::pair<vk::Buffer&, vk::Buffer&>> Allocator::writeBuffer(
+  vk::DeviceAddress address, std::span<const std::byte> data, std::size_t offset
+) {
+  std::lock_guard<std::mutex> g(m_mutex);
+
+  if (!m_buffers.contains(address))
+    GRF_PANIC("Buffer {:#X} not allocated", address);
+
+  std::shared_ptr<Buffer::Impl> impl = m_buffers.at(address);
+
+  VkMemoryPropertyFlags cFlags;
+  vmaGetAllocationMemoryProperties(m_allocator, impl->m_allocation, &cFlags);
+  vk::MemoryPropertyFlags flags(cFlags);
+
+  if (flags & vk::MemoryPropertyFlagBits::eHostVisible) {
+    vmaCopyMemoryToAllocation(
+      m_allocator,
+      data.data(),
+      impl->m_allocation,
+      offset, data.size()
+    );
+    return std::nullopt;
+  }
+
+  vk::Buffer& stagingBuffer = createStagingBuffer(data, offset);
+  return std::optional<std::pair<vk::Buffer&, vk::Buffer&>>({ impl->m_buffer, stagingBuffer });
+}
+
+void Allocator::destroyStagingBuffers() {
+  for (auto& [id, allocInfo] : m_staging) {
+    auto [allocation, buffer] = allocInfo;
+    vmaDestroyBuffer(m_allocator, buffer, allocation);
+  }
+  m_nextStagingBuffer = 0;
+}
+
 std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> Allocator::getVMAflags(BufferIntent intent) const {
   switch (intent) {
     case BufferIntent::GPUOnly:
     case BufferIntent::SingleUpdate:
-      return { VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, 0 };
+      return {
+        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+      };
     case BufferIntent::FrequentUpdate:
       return {
         VMA_MEMORY_USAGE_AUTO,
@@ -249,6 +300,43 @@ std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> Allocator::getVMAflags(Buffe
         VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
       };
   }
+}
+
+vk::Buffer& Allocator::createStagingBuffer(std::span<const std::byte> data, std::size_t offset) {
+  vk::BufferCreateInfo bufferCreateInfo{
+    .size   = data.size(),
+    .usage  = vk::BufferUsageFlagBits::eTransferSrc,
+  };
+
+  VmaAllocationCreateInfo allocationCreateInfo{
+    .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+    .usage = VMA_MEMORY_USAGE_AUTO
+  };
+
+  VkBuffer cBuffer;
+  VmaAllocation allocation;
+  auto res = vk::Result(vmaCreateBuffer(
+    m_allocator,
+    reinterpret_cast<VkBufferCreateInfo *>(&bufferCreateInfo),
+    &allocationCreateInfo,
+    &cBuffer,
+    &allocation,
+    nullptr
+  ));
+
+  if (res != vk::Result::eSuccess)
+    GRF_PANIC("Failed to allocate staging buffer: {}", vk::to_string(res));
+
+  m_staging[m_nextStagingBuffer] = std::make_pair(allocation, vk::Buffer(cBuffer));
+  vmaCopyMemoryToAllocation(
+    m_allocator,
+    data.data(),
+    allocation,
+    0,
+    data.size()
+  );
+
+  return m_staging.at(m_nextStagingBuffer++).second;
 }
 
 }

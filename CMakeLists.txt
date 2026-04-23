@@ -47,6 +47,7 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/gpu.hpp
   ${GRF_INTERNAL_INCL_DIR}/image.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
+  ${GRF_INTERNAL_INCL_DIR}/resource_manager.hpp
   ${GRF_INTERNAL_INCL_DIR}/shader_manager.hpp
   ${GRF_INTERNAL_INCL_DIR}/structs.hpp
 )
@@ -60,6 +61,7 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/gpu.cpp
   ${GRF_SOURCE_DIR}/image.cpp
+  ${GRF_SOURCE_DIR}/resource_manager.cpp
   ${GRF_SOURCE_DIR}/shader.cpp
   ${GRF_SOURCE_DIR}/shader_manager.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
@@ -116,6 +118,7 @@ if(GRF_MAKE_TESTS)
     ${TEST_SOURCE_DIR}/gsl/lexer.cpp
     ${TEST_SOURCE_DIR}/gsl/parser.cpp
     ${TEST_SOURCE_DIR}/allocation.cpp
+    ${TEST_SOURCE_DIR}/resource_update.cpp
     ${TEST_SOURCE_DIR}/shaders.cpp
   )
 

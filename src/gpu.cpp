@@ -28,11 +28,21 @@ GPU::GPU(const Settings& settings) {
 
 GPU::~GPU() = default;
 
-void GPU::run() {
+void GPU::run(std::function<void(double)> main) {
   while (!glfwWindowShouldClose(m_impl->m_window)) {
     glfwPollEvents();
+    m_impl->m_resourceManager->beginUpdates();
+    main(0.0);
   }
   m_impl->m_device.waitIdle();
+}
+
+void GPU::beginResourceUpdates() {
+  m_impl->m_resourceManager->beginUpdates();
+}
+
+void GPU::waitForResourceUpdates() {
+  m_impl->m_resourceManager->waitForUpdates();
 }
 
 Shader GPU::compileShader(ShaderType type, const std::string& path) {
@@ -143,7 +153,7 @@ Img2D GPU::createImg2D(Format format, uint32_t width, uint32_t height) {
   auto impl = m_impl->m_allocator->allocateImage(
     vk::ImageType::e2D,
     static_cast<vk::Format>(format),
-    vk::ImageUsageFlagBits::eSampled       |
+    vk::ImageUsageFlagBits::eStorage       |
       vk::ImageUsageFlagBits::eTransferSrc |
       vk::ImageUsageFlagBits::eTransferDst,
     width,
@@ -176,7 +186,7 @@ Img3D GPU::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t 
   auto impl = m_impl->m_allocator->allocateImage(
     vk::ImageType::e3D,
     static_cast<vk::Format>(format),
-    vk::ImageUsageFlagBits::eSampled        |
+    vk::ImageUsageFlagBits::eStorage        |
       vk::ImageUsageFlagBits::eTransferSrc  |
       vk::ImageUsageFlagBits::eTransferDst,
     width,
@@ -229,9 +239,12 @@ GPU::Impl::Impl(const Settings& settings) : m_settings(settings) {
 
   vk::PhysicalDeviceProperties properties = m_gpu.getProperties();
 
-  m_allocator = std::make_unique<Allocator>(m_instance, m_gpu, m_device, properties.apiVersion);
+  m_allocator = std::make_unique<Allocator>(
+    m_instance, m_gpu, m_device, properties.apiVersion, m_resourceManager
+  );
   m_descriptorHeap = std::make_unique<DescriptorHeap>(m_gpu, m_device);
   m_shaderManager = std::make_unique<ShaderManager>(m_device);
+  m_resourceManager = std::make_unique<ResourceManager>(m_allocator, m_transferQueue, m_device);
 
   log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
     std::string(GRF_VERSION),
@@ -243,6 +256,7 @@ GPU::Impl::Impl(const Settings& settings) : m_settings(settings) {
 }
 
 GPU::Impl::~Impl() {
+  m_resourceManager->destroy();
   m_shaderManager->destroy();
   m_descriptorHeap->destroy();
   m_allocator->destroy();

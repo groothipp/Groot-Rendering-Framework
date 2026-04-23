@@ -7,6 +7,7 @@
 #include "./image.hpp"
 
 #include <memory>
+#include <functional>
 
 namespace grf {
 
@@ -18,7 +19,9 @@ public:
   explicit GPU(const Settings& settings = Settings{});
   ~GPU();
 
-  void run();
+  void run(std::function<void(double)> main = [](double){});
+  void beginResourceUpdates();
+  void waitForResourceUpdates();
 
   Shader compileShader(ShaderType, const std::string&);
 
