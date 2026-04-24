@@ -5,8 +5,8 @@
 #include <format>
 
 TEST_CASE("shaders: compile", "[shaders]" ) {
-  grf::GRF gpu;
-  grf::Shader shader = gpu.compileShader(grf::ShaderType::Vertex,
+  grf::GRF grf;
+  grf::Shader shader = grf.compileShader(grf::ShaderType::Vertex,
     std::format("{}/shaders/vertex.gsl", GRF_TEST_DIR)
   );
 

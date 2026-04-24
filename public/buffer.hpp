@@ -33,9 +33,26 @@ public:
     scheduleWrite(std::as_bytes(data), offset);
   }
 
+  template <typename T>
+  T read(std::size_t offset = 0) {
+    static_assert(std::is_trivially_copyable_v<T>);
+
+    T out{};
+    retrieveData(std::as_writable_bytes(std::span{&out, 1}), offset);
+
+    return out;
+  }
+
+  template <typename T>
+  void read(std::span<T> out, std::size_t offset = 0) {
+    static_assert(std::is_trivially_copyable_v<T>);
+    retrieveData(std::as_writable_bytes(out), offset);
+  }
+
 private:
   Buffer(std::weak_ptr<Impl>);
   void scheduleWrite(std::span<const std::byte>, std::size_t);
+  void retrieveData(std::span<std::byte>, std::size_t);
 };
 
 }

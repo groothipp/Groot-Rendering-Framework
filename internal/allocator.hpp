@@ -58,6 +58,7 @@ public:
   std::optional<std::pair<vk::Buffer&, vk::Buffer&>> writeBuffer(
     vk::DeviceAddress, std::span<const std::byte>, std::size_t
   );
+  void readBuffer(vk::DeviceAddress, std::span<std::byte>, std::size_t);
 
   void destroyStagingBuffers();
 

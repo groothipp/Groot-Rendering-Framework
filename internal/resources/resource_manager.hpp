@@ -37,6 +37,7 @@ public:
   void destroy();
 
   void writeBuffer(vk::DeviceAddress, std::span<const std::byte>, std::size_t);
+  void readBuffer(vk::DeviceAddress, std::span<std::byte>, std::size_t);
   void beginUpdates();
   void waitForUpdates();
 

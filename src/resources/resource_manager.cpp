@@ -40,6 +40,10 @@ void ResourceManager::writeBuffer(
   };
 }
 
+void ResourceManager::readBuffer(vk::DeviceAddress address, std::span<std::byte> data, std::size_t offset) {
+  m_allocator->readBuffer(address, data, offset);
+}
+
 void ResourceManager::beginUpdates() {
   if (m_transferCmd != nullptr)
     waitForUpdates();

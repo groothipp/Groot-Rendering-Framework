@@ -3,11 +3,11 @@
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const std::size_t bufferSize = sizeof(uint32_t) * 1000;
 
   SECTION( "frequent update intent" ) {
-    grf::Buffer buffer = gpu.createBuffer(grf::BufferIntent::FrequentUpdate, bufferSize);
+    grf::Buffer buffer = grf.createBuffer(grf::BufferIntent::FrequentUpdate, bufferSize);
 
     REQUIRE( buffer.valid() );
     CHECK( buffer.size() == bufferSize );
@@ -16,7 +16,7 @@ TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
   }
 
   SECTION( "gpu only intent" ) {
-    grf::Buffer buffer = gpu.createBuffer(grf::BufferIntent::GPUOnly, bufferSize);
+    grf::Buffer buffer = grf.createBuffer(grf::BufferIntent::GPUOnly, bufferSize);
 
     REQUIRE( buffer.valid() );
     CHECK( buffer.size() == bufferSize );
@@ -25,7 +25,7 @@ TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
   }
 
   SECTION( "single update intent" ) {
-    grf::Buffer buffer = gpu.createBuffer(grf::BufferIntent::SingleUpdate, bufferSize);
+    grf::Buffer buffer = grf.createBuffer(grf::BufferIntent::SingleUpdate, bufferSize);
 
     REQUIRE( buffer.valid() );
     CHECK( buffer.size() == bufferSize );
@@ -34,7 +34,7 @@ TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
   }
 
   SECTION( "readable intent" ) {
-    grf::Buffer buffer = gpu.createBuffer(grf::BufferIntent::Readable, bufferSize);
+    grf::Buffer buffer = grf.createBuffer(grf::BufferIntent::Readable, bufferSize);
 
     REQUIRE( buffer.valid() );
     CHECK( buffer.size() == bufferSize );
@@ -44,12 +44,12 @@ TEST_CASE( "allocation: buffer", "[allocation][buffer]" ) {
 }
 
 TEST_CASE( "allocation: tex2D", "[allocation][tex2D]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Tex2D tex = gpu.createTex2D(format, width, height);
+  grf::Tex2D tex = grf.createTex2D(format, width, height);
 
   REQUIRE(tex.valid() );
 
@@ -64,13 +64,13 @@ TEST_CASE( "allocation: tex2D", "[allocation][tex2D]" ) {
 }
 
 TEST_CASE( "allocation: tex3D", "[allocation][tex3D]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const uint32_t depth = 3;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Tex3D tex = gpu.createTex3D(format, width, height, depth);
+  grf::Tex3D tex = grf.createTex3D(format, width, height, depth);
 
   REQUIRE( tex.valid() );
 
@@ -85,12 +85,12 @@ TEST_CASE( "allocation: tex3D", "[allocation][tex3D]" ) {
 }
 
 TEST_CASE( "allocation: cubemap", "[allocation][cubemap]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Cubemap tex = gpu.createCubemap(format, width, height);
+  grf::Cubemap tex = grf.createCubemap(format, width, height);
 
   REQUIRE( tex.valid() );
 
@@ -105,12 +105,12 @@ TEST_CASE( "allocation: cubemap", "[allocation][cubemap]" ) {
 }
 
 TEST_CASE( "allocation: img2D", "[allocation][img2D]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Img2D tex = gpu.createImg2D(format, width, height);
+  grf::Img2D tex = grf.createImg2D(format, width, height);
 
   REQUIRE(tex.valid() );
 
@@ -125,13 +125,13 @@ TEST_CASE( "allocation: img2D", "[allocation][img2D]" ) {
 }
 
 TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const uint32_t width = 1024;
   const uint32_t height = 1024;
   const uint32_t depth = 3;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Img3D tex = gpu.createImg3D(format, width, height, depth);
+  grf::Img3D tex = grf.createImg3D(format, width, height, depth);
 
   REQUIRE( tex.valid() );
 
@@ -146,7 +146,7 @@ TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
 }
 
 TEST_CASE( "allocation: sampler", "[allocation][sampler]" ) {
-  grf::GRF gpu;
+  grf::GRF grf;
   const grf::SamplerSettings settings{
     .magFilter            = grf::Filter::Linear,
     .minFilter            = grf::Filter::Nearest,
@@ -156,7 +156,7 @@ TEST_CASE( "allocation: sampler", "[allocation][sampler]" ) {
     .anisotropicFiltering = true
   };
 
-  grf::Sampler sampler = gpu.createSampler(settings);
+  grf::Sampler sampler = grf.createSampler(settings);
 
   REQUIRE( sampler.valid() );
   CHECK(sampler.heapIndex() != 0xFFFFFFFF );

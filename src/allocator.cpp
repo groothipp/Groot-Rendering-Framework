@@ -249,7 +249,7 @@ std::optional<std::pair<vk::Buffer&, vk::Buffer&>> Allocator::writeBuffer(
   std::lock_guard<std::mutex> g(m_mutex);
 
   if (!m_buffers.contains(address))
-    GRF_PANIC("Buffer {:#X} not allocated", address);
+    GRF_PANIC("Failed to write buffer. {:#X} not found in allocation map", address);
 
   std::shared_ptr<Buffer::Impl> impl = m_buffers.at(address);
 
@@ -269,6 +269,17 @@ std::optional<std::pair<vk::Buffer&, vk::Buffer&>> Allocator::writeBuffer(
 
   vk::Buffer& stagingBuffer = createStagingBuffer(data, offset);
   return std::optional<std::pair<vk::Buffer&, vk::Buffer&>>({ impl->m_buffer, stagingBuffer });
+}
+
+void Allocator::readBuffer(vk::DeviceAddress address, std::span<std::byte> data, std::size_t offset) {
+  std::lock_guard<std::mutex> g(m_mutex);
+
+  if (!m_buffers.contains(address))
+    GRF_PANIC("Failed to read buffer. {:#X} not found in allocation map", address);
+
+  auto impl = m_buffers.at(address);
+
+  vmaCopyAllocationToMemory(m_allocator, impl->m_allocation, offset, data.data(), data.size());
 }
 
 void Allocator::destroyStagingBuffers() {

@@ -1,6 +1,7 @@
 #include "internal/resources/buffer.hpp"
 #include "internal/resources/resource_manager.hpp"
 #include "internal/log.hpp"
+#include "public/enums.hpp"
 
 namespace grf {
 
@@ -36,7 +37,27 @@ void Buffer::scheduleWrite(std::span<const std::byte> data, std::size_t offset) 
   auto ptr = m_impl.lock();
   if (ptr == nullptr)
     GRF_PANIC("Tried to schedule buffer write for invalid buffer");
+
+  if (offset + data.size() > ptr->m_size)
+    GRF_PANIC("Out of bounds buffer write. Offset + size should be less than or equal to the allocation size");
+
   ptr->m_resourceManager->writeBuffer(ptr->m_address, data, offset);
+}
+
+void Buffer::retrieveData(std::span<std::byte> data, std::size_t offset) {
+  auto ptr = m_impl.lock();
+  if (ptr == nullptr)
+      GRF_PANIC("Tried to retrieve data from invalid buffer");
+
+  if (ptr->m_intent != BufferIntent::Readable) {
+    log::warning("Attempted to read from a buffer that was not made with the readable intent");
+    return;
+  }
+
+  if (offset + data.size() > ptr->m_size)
+    GRF_PANIC("Out of bounds buffer read. Offset + size should be less than or equal to the allocation size");
+
+  ptr->m_resourceManager->readBuffer(ptr->m_address, data, offset);
 }
 
 Buffer::Impl::Impl(
