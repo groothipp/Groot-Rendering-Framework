@@ -91,4 +91,19 @@ enum class Filter {
   Linear
 };
 
+enum class CubeFace {
+  Right,
+  Left,
+  Top,
+  Bottom,
+  Back,
+  Front
+};
+
+enum class QueueType {
+  Graphics,
+  Compute,
+  Transfer
+};
+
 }

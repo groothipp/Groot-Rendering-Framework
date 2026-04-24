@@ -1,6 +1,7 @@
 #pragma once
 
 #include "internal/resources/image.hpp"
+#include "internal/resources/sampler.hpp"
 
 #include <vulkan/vulkan.hpp>
 
@@ -31,11 +32,11 @@ public:
   const vk::DescriptorSet& set() const;
 
   void destroy();
-  void addTex2D(std::shared_ptr<Image::Impl>);
-  void addTex3D(std::shared_ptr<Image::Impl>);
-  void addCubemap(std::shared_ptr<Image::Impl>);
-  void addImg2D(std::shared_ptr<Image::Impl>);
-  void addImg3D(std::shared_ptr<Image::Impl>);
+  void addTex2D(std::shared_ptr<Image>);
+  void addTex3D(std::shared_ptr<Image>);
+  void addCubemap(std::shared_ptr<Image>);
+  void addImg2D(std::shared_ptr<Image>);
+  void addImg3D(std::shared_ptr<Image>);
   void addSampler(std::shared_ptr<Sampler::Impl>);
 
 private:

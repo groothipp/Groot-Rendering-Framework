@@ -48,7 +48,7 @@ void DescriptorHeap::destroy() {
   m_nextIndex = { 0 };
 }
 
-void DescriptorHeap::addTex2D(std::shared_ptr<Image::Impl> impl) {
+void DescriptorHeap::addTex2D(std::shared_ptr<Image> impl) {
   if (m_nextIndex[g_tex2DBinding] == m_maxVal[g_tex2DBinding])
     GRF_PANIC("Failed to add Tex2D -- heap full");
 
@@ -68,10 +68,10 @@ void DescriptorHeap::addTex2D(std::shared_ptr<Image::Impl> impl) {
 
   m_device.updateDescriptorSets(1, &write, 0, nullptr);
 
-  impl->m_index = m_nextIndex[g_tex2DBinding]++;
+  impl->m_heapIndexSampled = m_nextIndex[g_tex2DBinding]++;
 }
 
-void DescriptorHeap::addTex3D(std::shared_ptr<Image::Impl> impl) {
+void DescriptorHeap::addTex3D(std::shared_ptr<Image> impl) {
   if (m_nextIndex[g_tex3DBinding] == m_maxVal[g_tex3DBinding])
     GRF_PANIC("Failed to add Tex3D -- heap full");
 
@@ -91,10 +91,10 @@ void DescriptorHeap::addTex3D(std::shared_ptr<Image::Impl> impl) {
 
   m_device.updateDescriptorSets(1, &write, 0, nullptr);
 
-  impl->m_index = m_nextIndex[g_tex3DBinding]++;
+  impl->m_heapIndexSampled = m_nextIndex[g_tex3DBinding]++;
 }
 
-void DescriptorHeap::addCubemap(std::shared_ptr<Image::Impl> impl) {
+void DescriptorHeap::addCubemap(std::shared_ptr<Image> impl) {
   if (m_nextIndex[g_cubemapBinding] == m_maxVal[g_cubemapBinding])
     GRF_PANIC("Failed to add Cubemap -- heap full");
 
@@ -114,53 +114,85 @@ void DescriptorHeap::addCubemap(std::shared_ptr<Image::Impl> impl) {
 
   m_device.updateDescriptorSets(1, &write, 0, nullptr);
 
-  impl->m_index = m_nextIndex[g_cubemapBinding]++;
+  impl->m_heapIndexSampled = m_nextIndex[g_cubemapBinding]++;
 }
 
-void DescriptorHeap::addImg2D(std::shared_ptr<Image::Impl> impl) {
+void DescriptorHeap::addImg2D(std::shared_ptr<Image> impl) {
   if (m_nextIndex[g_img2DBinding] == m_maxVal[g_img2DBinding])
     GRF_PANIC("Failed to add Img2D -- heap full");
 
-  vk::DescriptorImageInfo info{
+  vk::DescriptorImageInfo storageInfo{
     .imageView    = impl->m_view,
     .imageLayout  = vk::ImageLayout::eGeneral
   };
 
-  vk::WriteDescriptorSet write{
-    .dstSet           = m_set,
-    .dstBinding       = g_img2DBinding,
-    .dstArrayElement  = m_nextIndex[g_img2DBinding],
-    .descriptorCount  = 1,
-    .descriptorType   = vk::DescriptorType::eStorageImage,
-    .pImageInfo       = &info
+  vk::DescriptorImageInfo sampledInfo{
+    .imageView    = impl->m_view,
+    .imageLayout  = vk::ImageLayout::eShaderReadOnlyOptimal
   };
 
-  m_device.updateDescriptorSets(1, &write, 0, nullptr);
+  std::array<vk::WriteDescriptorSet, 2> writes = {
+    vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_img2DBinding,
+      .dstArrayElement  = m_nextIndex[g_img2DBinding],
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &storageInfo
+    },
+    vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_tex2DBinding,
+      .dstArrayElement  = m_nextIndex[g_tex2DBinding],
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eSampledImage,
+      .pImageInfo       = &sampledInfo
+    }
+  };
 
-  impl->m_index = m_nextIndex[g_img2DBinding]++;
+  m_device.updateDescriptorSets(writes, nullptr);
+
+  impl->m_heapIndexStorage = m_nextIndex[g_img2DBinding]++;
+  impl->m_heapIndexSampled = m_nextIndex[g_tex2DBinding]++;
 }
 
-void DescriptorHeap::addImg3D(std::shared_ptr<Image::Impl> impl) {
+void DescriptorHeap::addImg3D(std::shared_ptr<Image> impl) {
   if (m_nextIndex[g_img3DBinding] == m_maxVal[g_img3DBinding])
     GRF_PANIC("Failed to add Img3D -- heap full");
 
-  vk::DescriptorImageInfo info{
+  vk::DescriptorImageInfo storageInfo{
     .imageView    = impl->m_view,
     .imageLayout  = vk::ImageLayout::eGeneral
   };
 
-  vk::WriteDescriptorSet write{
-    .dstSet           = m_set,
-    .dstBinding       = g_img3DBinding,
-    .dstArrayElement  = m_nextIndex[g_img3DBinding],
-    .descriptorCount  = 1,
-    .descriptorType   = vk::DescriptorType::eStorageImage,
-    .pImageInfo       = &info
+  vk::DescriptorImageInfo sampledInfo{
+    .imageView    = impl->m_view,
+    .imageLayout  = vk::ImageLayout::eShaderReadOnlyOptimal
   };
 
-  m_device.updateDescriptorSets(1, &write, 0, nullptr);
+  std::array<vk::WriteDescriptorSet, 2> writes = {
+    vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_img3DBinding,
+      .dstArrayElement  = m_nextIndex[g_img3DBinding],
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &storageInfo
+    },
+    vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_tex3DBinding,
+      .dstArrayElement  = m_nextIndex[g_tex3DBinding],
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &sampledInfo
+    }
+  };
 
-  impl->m_index = m_nextIndex[g_img3DBinding]++;
+  m_device.updateDescriptorSets(writes, nullptr);
+
+  impl->m_heapIndexStorage = m_nextIndex[g_img3DBinding]++;
+  impl->m_heapIndexSampled = m_nextIndex[g_tex3DBinding]++;
 }
 
 void DescriptorHeap::addSampler(std::shared_ptr<Sampler::Impl> impl) {

@@ -2,9 +2,12 @@
 
 #include "internal/resources/buffer.hpp"
 #include "internal/resources/image.hpp"
+#include "internal/resources/sampler.hpp"
 
 #include "public/structs.hpp"
+#include "vulkan/vulkan.hpp"
 
+#include <cstdint>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
@@ -16,9 +19,19 @@ namespace grf {
 
 class ResourceManager;
 
+struct ImageAllocInfo{
+  vk::ImageType       type;
+  vk::Format          format;
+  vk::ImageUsageFlags usage;
+  uint32_t            width;
+  uint32_t            height;
+  uint32_t            depth = 1;
+  bool                isCubemap = false;
+};
+
 class Allocator {
   using BufferMap = std::unordered_map<uint64_t, std::shared_ptr<Buffer::Impl>>;
-  using ImageMap = std::unordered_map<uint64_t, std::shared_ptr<Image::Impl>>;
+  using ImageMap = std::unordered_map<uint64_t, std::shared_ptr<Image>>;
   using SamplerMap = std::unordered_map<uint64_t, std::shared_ptr<Sampler::Impl>>;
   using StagingMap = std::unordered_map<uint64_t, std::pair<VmaAllocation, vk::Buffer>>;
 
@@ -48,11 +61,7 @@ public:
 
   void destroy();
   Buffer allocateBuffer(vk::DeviceSize, BufferIntent);
-  std::shared_ptr<Image::Impl> allocateImage(
-    vk::ImageType, vk::Format, vk::ImageUsageFlags,
-    uint32_t, uint32_t, uint32_t depth = 1
-  );
-  std::shared_ptr<Image::Impl> allocateCubemap(vk::Format, uint32_t, uint32_t);
+  std::shared_ptr<Image> allocateImage(const ImageAllocInfo&);
   std::shared_ptr<Sampler::Impl> createSampler(const SamplerSettings&);
 
   std::optional<std::pair<vk::Buffer&, vk::Buffer&>> writeBuffer(

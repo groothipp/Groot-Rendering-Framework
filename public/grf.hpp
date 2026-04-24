@@ -4,7 +4,9 @@
 #include "./structs.hpp"
 #include "./shader.hpp"
 #include "./buffer.hpp"
-#include "./image.hpp"
+#include "./tex.hpp"
+#include "./img.hpp"
+#include "./sampler.hpp"
 
 #include <memory>
 #include <functional>

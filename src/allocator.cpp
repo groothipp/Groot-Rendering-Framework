@@ -110,24 +110,25 @@ Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
   return Buffer(impl);
 }
 
-std::shared_ptr<Image::Impl> Allocator::allocateImage(
-  vk::ImageType type, vk::Format format, vk::ImageUsageFlags usage,
-  uint32_t width, uint32_t height, uint32_t depth
-) {
+std::shared_ptr<Image> Allocator::allocateImage(const ImageAllocInfo& info) {
   vk::ImageCreateInfo imageCreateInfo{
-    .imageType    = type,
-    .format       = format,
+    .imageType    = info.type,
+    .format       = info.format,
     .extent       = {
-      .width  = width,
-      .height = height,
-      .depth  = depth
+      .width  = info.width,
+      .height = info.height,
+      .depth  = info.depth
     },
     .mipLevels    = 1,
     .arrayLayers  = 1,
     .samples      = vk::SampleCountFlagBits::e1,
     .tiling       = vk::ImageTiling::eOptimal,
-    .usage        = usage
+    .usage        = info.usage
   };
+  if (info.isCubemap) {
+    imageCreateInfo.flags |= vk::ImageCreateFlagBits::eCubeCompatible;
+    imageCreateInfo.arrayLayers = 6;
+  }
 
   VmaAllocationCreateInfo allocationCreateInfo{
     .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
@@ -150,71 +151,16 @@ std::shared_ptr<Image::Impl> Allocator::allocateImage(
   vk::Image image(cImage);
   auto req = m_device.getImageMemoryRequirements(image);
 
-  auto impl = std::make_shared<Image::Impl>(
-    m_nextImageID,
-    allocation,
-    image,
-    format,
-    req.size,
-    width,
-    height,
-    depth
-  );
-
-  m_images[m_nextImageID++] = impl;
-  return impl;
-}
-
-std::shared_ptr<Image::Impl> Allocator::allocateCubemap(vk::Format format, uint32_t width, uint32_t height) {
-  vk::ImageCreateInfo imageCreateInfo{
-    .flags        = vk::ImageCreateFlagBits::eCubeCompatible,
-    .imageType    = vk::ImageType::e2D,
-    .format       = format,
-    .extent       = {
-      .width  = width,
-      .height = height,
-      .depth  = 1
-    },
-    .mipLevels    = 1,
-    .arrayLayers  = 6,
-    .samples      = vk::SampleCountFlagBits::e1,
-    .tiling       = vk::ImageTiling::eOptimal,
-    .usage        = vk::ImageUsageFlagBits::eSampled      |
-                    vk::ImageUsageFlagBits::eTransferDst  |
-                    vk::ImageUsageFlagBits::eTransferSrc
-  };
-
-  VmaAllocationCreateInfo allocationCreateInfo{
-    .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
-  };
-
-  VmaAllocation allocation;
-  VkImage cImage;
-  auto res = vk::Result(vmaCreateImage(
-    m_allocator,
-    reinterpret_cast<VkImageCreateInfo *>(&imageCreateInfo),
-    &allocationCreateInfo,
-    &cImage,
-    &allocation,
-    nullptr
-  ));
-
-  if (res != vk::Result::eSuccess)
-    GRF_PANIC("Failed to allocate cubemap: {}", vk::to_string(res));
-
-  vk::Image image(cImage);
-  auto req = m_device.getImageMemoryRequirements(image);
-
-  auto impl = std::make_shared<Image::Impl>(
-    m_nextImageID,
-    allocation,
-    image,
-    format,
-    req.size,
-    width,
-    height,
-    6
-  );
+  auto impl = std::make_shared<Image>(m_resourceManager, ImageInfo{
+    .id     = m_nextImageID,
+    .alloc  = allocation,
+    .image  = image,
+    .format = info.format,
+    .size   = req.size,
+    .width  = info.width,
+    .height = info.height,
+    .depth  = info.depth
+  });
 
   m_images[m_nextImageID++] = impl;
   return impl;

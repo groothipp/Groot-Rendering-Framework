@@ -51,12 +51,11 @@ TEST_CASE( "allocation: tex2D", "[allocation][tex2D]" ) {
 
   grf::Tex2D tex = grf.createTex2D(format, width, height);
 
-  REQUIRE(tex.valid() );
+  REQUIRE( tex.valid() );
 
-  auto [w, h, d] = tex.dims();
+  auto [w, h] = tex.dims();
   CHECK( w == width );
   CHECK( h == height );
-  CHECK( d == 1 );
 
   CHECK( tex.heapIndex() != 0xFFFFFFFF );
   CHECK( tex.size() != 0 );
@@ -94,10 +93,9 @@ TEST_CASE( "allocation: cubemap", "[allocation][cubemap]" ) {
 
   REQUIRE( tex.valid() );
 
-  auto [w, h, f] = tex.dims();
+  auto [w, h] = tex.dims();
   CHECK( w == width );
   CHECK( h == height );
-  CHECK( f == 6 );
 
   CHECK( tex.heapIndex() != 0xFFFFFFFF );
   CHECK( tex.size() != 0 );
@@ -110,18 +108,17 @@ TEST_CASE( "allocation: img2D", "[allocation][img2D]" ) {
   const uint32_t height = 1024;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Img2D tex = grf.createImg2D(format, width, height);
+  grf::Img2D img = grf.createImg2D(format, width, height);
 
-  REQUIRE(tex.valid() );
+  REQUIRE( img.valid() );
 
-  auto [w, h, d] = tex.dims();
+  auto [w, h] = img.dims();
   CHECK( w == width );
   CHECK( h == height );
-  CHECK( d == 1 );
 
-  CHECK( tex.heapIndex() != 0xFFFFFFFF );
-  CHECK( tex.size() != 0 );
-  CHECK( tex.format() == format );
+  CHECK( img.heapIndex() != 0xFFFFFFFF );
+  CHECK( img.size() != 0 );
+  CHECK( img.format() == format );
 }
 
 TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
@@ -131,18 +128,18 @@ TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
   const uint32_t depth = 3;
   const grf::Format format = grf::Format::rgba16_sfloat;
 
-  grf::Img3D tex = grf.createImg3D(format, width, height, depth);
+  grf::Img3D img = grf.createImg3D(format, width, height, depth);
 
-  REQUIRE( tex.valid() );
+  REQUIRE( img.valid() );
 
-  auto [w, h, d] = tex.dims();
+  auto [w, h, d] = img.dims();
   CHECK( w == width );
   CHECK( h == height );
   CHECK( d == depth );
 
-  CHECK( tex.heapIndex() != 0xFFFFFFFF );
-  CHECK( tex.size() != 0 );
-  CHECK( tex.format() == format );
+  CHECK( img.heapIndex() != 0xFFFFFFFF );
+  CHECK( img.size() != 0 );
+  CHECK( img.format() == format );
 }
 
 TEST_CASE( "allocation: sampler", "[allocation][sampler]" ) {

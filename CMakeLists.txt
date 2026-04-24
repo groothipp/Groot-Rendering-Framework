@@ -31,9 +31,11 @@ set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/buffer.hpp
   ${GRF_PUBLIC_INCL_DIR}/enums.hpp
   ${GRF_PUBLIC_INCL_DIR}/grf.hpp
-  ${GRF_PUBLIC_INCL_DIR}/image.hpp
+  ${GRF_PUBLIC_INCL_DIR}/img.hpp
+  ${GRF_PUBLIC_INCL_DIR}/sampler.hpp
   ${GRF_PUBLIC_INCL_DIR}/shader.hpp
   ${GRF_PUBLIC_INCL_DIR}/structs.hpp
+  ${GRF_PUBLIC_INCL_DIR}/tex.hpp
 )
 
 set(GRF_INTERNAL_HEADERS
@@ -42,9 +44,12 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/gsl/parser.hpp
   ${GRF_INTERNAL_INCL_DIR}/gsl/shader_manager.hpp
   ${GRF_INTERNAL_INCL_DIR}/gsl/tokens.hpp
+
   ${GRF_INTERNAL_INCL_DIR}/resources/buffer.hpp
   ${GRF_INTERNAL_INCL_DIR}/resources/image.hpp
   ${GRF_INTERNAL_INCL_DIR}/resources/resource_manager.hpp
+  ${GRF_INTERNAL_INCL_DIR}/resources/sampler.hpp
+
   ${GRF_INTERNAL_INCL_DIR}/allocator.hpp
   ${GRF_INTERNAL_INCL_DIR}/descriptor_heap.hpp
   ${GRF_INTERNAL_INCL_DIR}/grf.hpp
@@ -57,9 +62,14 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/gsl/parser.cpp
   ${GRF_SOURCE_DIR}/gsl/shader.cpp
   ${GRF_SOURCE_DIR}/gsl/shader_manager.cpp
+
   ${GRF_SOURCE_DIR}/resources/buffer.cpp
   ${GRF_SOURCE_DIR}/resources/image.cpp
+  ${GRF_SOURCE_DIR}/resources/img.cpp
   ${GRF_SOURCE_DIR}/resources/resource_manager.cpp
+  ${GRF_SOURCE_DIR}/resources/sampler.cpp
+  ${GRF_SOURCE_DIR}/resources/tex.cpp
+
   ${GRF_SOURCE_DIR}/allocator.cpp
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/grf.cpp

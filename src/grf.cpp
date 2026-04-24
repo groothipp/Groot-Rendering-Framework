@@ -4,6 +4,7 @@
 #include "internal/descriptor_heap.hpp"
 #include "internal/grf.hpp"
 #include "internal/log.hpp"
+#include "vulkan/vulkan.hpp"
 
 #include <vulkan/vulkan_beta.h>
 
@@ -53,20 +54,20 @@ Buffer GRF::createBuffer(BufferIntent intent, std::size_t size) {
 }
 
 Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height) {
-  auto impl = m_impl->m_allocator->allocateImage(
-    vk::ImageType::e2D,
-    static_cast<vk::Format>(format),
-    vk::ImageUsageFlagBits::eSampled       |
-      vk::ImageUsageFlagBits::eTransferSrc |
-      vk::ImageUsageFlagBits::eTransferDst,
-    width,
-    height
-  );
+  auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
+    .type   = vk::ImageType::e2D,
+    .format = static_cast<vk::Format>(format),
+    .usage  = vk::ImageUsageFlagBits::eSampled      |
+              vk::ImageUsageFlagBits::eTransferSrc  |
+              vk::ImageUsageFlagBits::eTransferDst,
+    .width  = width,
+    .height = height
+  });
 
-  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
-    .image = impl->m_image,
-    .viewType = vk::ImageViewType::e2D,
-    .format = impl->m_format,
+  img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::e2D,
+    .format     = img->m_format,
     .components = {
       .r = vk::ComponentSwizzle::eIdentity,
       .g = vk::ComponentSwizzle::eIdentity,
@@ -80,27 +81,27 @@ Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height) {
     }
   });
 
-  m_impl->m_descriptorHeap->addTex2D(impl);
+  m_impl->m_descriptorHeap->addTex2D(img);
 
-  return Tex2D(impl);
+  return Tex2D(img);
 }
 
 Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
-  auto impl = m_impl->m_allocator->allocateImage(
-    vk::ImageType::e3D,
-    static_cast<vk::Format>(format),
-    vk::ImageUsageFlagBits::eSampled        |
-      vk::ImageUsageFlagBits::eTransferSrc  |
-      vk::ImageUsageFlagBits::eTransferDst,
-    width,
-    height,
-    depth
-  );
+  auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
+    .type   = vk::ImageType::e3D,
+    .format = static_cast<vk::Format>(format),
+    .usage  = vk::ImageUsageFlagBits::eSampled      |
+              vk::ImageUsageFlagBits::eTransferSrc  |
+              vk::ImageUsageFlagBits::eTransferDst,
+    .width  = width,
+    .height = height,
+    .depth  = depth
+  });
 
-  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
-    .image = impl->m_image,
-    .viewType = vk::ImageViewType::e3D,
-    .format = impl->m_format,
+  img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::e3D,
+    .format     = img->m_format,
     .components = {
       .r = vk::ComponentSwizzle::eIdentity,
       .g = vk::ComponentSwizzle::eIdentity,
@@ -114,22 +115,27 @@ Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t 
     }
   });
 
-  m_impl->m_descriptorHeap->addTex3D(impl);
+  m_impl->m_descriptorHeap->addTex3D(img);
 
-  return Tex3D(impl);
+  return Tex3D(img);
 }
 
 Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
-  auto impl = m_impl->m_allocator->allocateCubemap(
-    static_cast<vk::Format>(format),
-    width,
-    height
-  );
+  auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
+    .type       = vk::ImageType::e2D,
+    .format     = static_cast<vk::Format>(format),
+    .usage      = vk::ImageUsageFlagBits::eSampled      |
+                  vk::ImageUsageFlagBits::eTransferSrc  |
+                  vk::ImageUsageFlagBits::eTransferDst,
+    .width      = width,
+    .height     = height,
+    .isCubemap  = true
+  });
 
-  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
-    .image = impl->m_image,
-    .viewType = vk::ImageViewType::eCube,
-    .format = impl->m_format,
+  img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::eCube,
+    .format     = img->m_format,
     .components = {
       .r = vk::ComponentSwizzle::eIdentity,
       .g = vk::ComponentSwizzle::eIdentity,
@@ -143,26 +149,27 @@ Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
     }
   });
 
-  m_impl->m_descriptorHeap->addCubemap(impl);
+  m_impl->m_descriptorHeap->addCubemap(img);
 
-  return Cubemap(impl);
+  return Cubemap(img);
 }
 
 Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height) {
-  auto impl = m_impl->m_allocator->allocateImage(
-    vk::ImageType::e2D,
-    static_cast<vk::Format>(format),
-    vk::ImageUsageFlagBits::eStorage       |
-      vk::ImageUsageFlagBits::eTransferSrc |
-      vk::ImageUsageFlagBits::eTransferDst,
-    width,
-    height
-  );
+  auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
+    .type = vk::ImageType::e2D,
+    .format = static_cast<vk::Format>(format),
+    .usage  = vk::ImageUsageFlagBits::eStorage      |
+              vk::ImageUsageFlagBits::eSampled      |
+              vk::ImageUsageFlagBits::eTransferSrc  |
+              vk::ImageUsageFlagBits::eTransferDst,
+    .width  = width,
+    .height = height
+  });
 
-  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
-    .image = impl->m_image,
-    .viewType = vk::ImageViewType::e2D,
-    .format = impl->m_format,
+  img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::e2D,
+    .format     = img->m_format,
     .components = {
       .r = vk::ComponentSwizzle::eIdentity,
       .g = vk::ComponentSwizzle::eIdentity,
@@ -176,27 +183,28 @@ Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height) {
     }
   });
 
-  m_impl->m_descriptorHeap->addImg2D(impl);
+  m_impl->m_descriptorHeap->addImg2D(img);
 
-  return Img2D(impl);
+  return Img2D(img);
 }
 
 Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
-  auto impl = m_impl->m_allocator->allocateImage(
-    vk::ImageType::e3D,
-    static_cast<vk::Format>(format),
-    vk::ImageUsageFlagBits::eStorage        |
-      vk::ImageUsageFlagBits::eTransferSrc  |
-      vk::ImageUsageFlagBits::eTransferDst,
-    width,
-    height,
-    depth
-  );
+  auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
+    .type   = vk::ImageType::e3D,
+    .format = static_cast<vk::Format>(format),
+    .usage  = vk::ImageUsageFlagBits::eStorage      |
+              vk::ImageUsageFlagBits::eSampled      |
+              vk::ImageUsageFlagBits::eTransferSrc  |
+              vk::ImageUsageFlagBits::eTransferDst,
+    .width  = width,
+    .height = height,
+    .depth  = depth
+  });
 
-  impl->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
-    .image = impl->m_image,
-    .viewType = vk::ImageViewType::e3D,
-    .format = impl->m_format,
+  img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::e3D,
+    .format     = img->m_format,
     .components = {
       .r = vk::ComponentSwizzle::eIdentity,
       .g = vk::ComponentSwizzle::eIdentity,
@@ -210,9 +218,9 @@ Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t 
     }
   });
 
-  m_impl->m_descriptorHeap->addImg3D(impl);
+  m_impl->m_descriptorHeap->addImg3D(img);
 
-  return Img3D(impl);
+  return Img3D(img);
 }
 
 Sampler GRF::createSampler(const SamplerSettings& settings) {
