@@ -114,4 +114,10 @@ enum class Layout {
   TransferDstOptimal = 7
 };
 
+enum class PresentMode {
+  VSync,
+  Mailbox,
+  Immediate
+};
+
 }

@@ -19,7 +19,7 @@ struct Uniforms {
 
 TEST_CASE("resource update: empty flush is a no-op", "[resource-update]") {
   grf::GRF grf;
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -31,7 +31,7 @@ TEST_CASE("resource update: single struct to host-visible buffer", "[resource-up
   Uniforms u{ .frame = 42, .time = 1.5f, .flags = -1 };
   buf.write(u);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -43,7 +43,7 @@ TEST_CASE("resource update: single struct to device-local buffer", "[resource-up
   Uniforms u{ .frame = 0, .time = 0.0f, .flags = 0 };
   buf.write(u);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -57,7 +57,7 @@ TEST_CASE("resource update: span of trivially-copyable data", "[resource-update]
   for (std::size_t i = 0; i < count; ++i) data[i] = static_cast<uint32_t>(i);
   buf.write(std::span<const uint32_t>(data));
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -68,7 +68,7 @@ TEST_CASE("resource update: temporary bytes survive until flush", "[resource-upd
 
   buf.write(Uniforms{ .frame = 7, .time = 0.1f, .flags = 2 });
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -80,7 +80,7 @@ TEST_CASE("resource update: write with non-zero offset", "[resource-update]") {
   uint32_t value = 99;
   buf.write(value, sizeof(uint32_t) * 4);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -93,7 +93,7 @@ TEST_CASE("resource update: mixed intents in single flush", "[resource-update]")
   hostBuf.write(Uniforms{ .frame = 1, .time = 0.0f, .flags = 0 });
   devBuf.write( Uniforms{ .frame = 2, .time = 0.0f, .flags = 0 });
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -108,7 +108,7 @@ TEST_CASE("resource update: multiple begin+wait cycles", "[resource-update]") {
       data[i] = static_cast<uint32_t>(frame * 100 + i);
     buf.write(std::span<const uint32_t>(data));
 
-    grf.beginResourceUpdates();
+    grf.beginFrame();
     grf.waitForResourceUpdates();
   }
   SUCCEED();
@@ -132,7 +132,7 @@ TEST_CASE("resource update: many buffers in one flush", "[resource-update]") {
     buffers[i].write(std::span<const uint32_t>(payload));
   }
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -150,7 +150,7 @@ TEST_CASE("resource read: single struct round-trip", "[resource-read]") {
   Uniforms written{ .frame = 42, .time = 1.5f, .flags = -1 };
   buf.write(written);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
 
   Uniforms readBack = buf.read<Uniforms>();
@@ -168,7 +168,7 @@ TEST_CASE("resource read: span round-trip", "[resource-read]") {
   for (std::size_t i = 0; i < count; ++i) written[i] = static_cast<uint32_t>(i * 7 + 3);
   buf.write(std::span<const uint32_t>(written));
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
 
   std::vector<uint32_t> readBack(count);
@@ -186,7 +186,7 @@ TEST_CASE("resource read: non-zero offset", "[resource-read]") {
   for (std::size_t i = 0; i < count; ++i) written[i] = static_cast<uint32_t>(i + 100);
   buf.write(std::span<const uint32_t>(written));
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
 
   uint32_t readBack = buf.read<uint32_t>(sizeof(uint32_t) * 4);
@@ -203,7 +203,7 @@ TEST_CASE("resource read: partial readback shorter than buffer", "[resource-read
   for (std::size_t i = 0; i < full; ++i) written[i] = static_cast<uint32_t>(i);
   buf.write(std::span<const uint32_t>(written));
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
 
   std::vector<uint32_t> readBack(partial);
@@ -218,7 +218,7 @@ TEST_CASE("resource read: non-readable intent yields zeros", "[resource-read]") 
   SECTION("single struct from GPUOnly") {
     grf::Buffer buf = grf.createBuffer(grf::BufferIntent::GPUOnly, sizeof(Uniforms));
     buf.write(Uniforms{ .frame = 7, .time = 2.0f, .flags = 9 });
-    grf.beginResourceUpdates();
+    grf.beginFrame();
     grf.waitForResourceUpdates();
 
     Uniforms readBack = buf.read<Uniforms>();
@@ -232,7 +232,7 @@ TEST_CASE("resource read: non-readable intent yields zeros", "[resource-read]") 
     grf::Buffer buf = grf.createBuffer(grf::BufferIntent::FrequentUpdate, sizeof(uint32_t) * count);
     std::array<uint32_t, count> payload{ 1, 2, 3, 4, 5, 6, 7, 8 };
     buf.write(std::span<const uint32_t>(payload));
-    grf.beginResourceUpdates();
+    grf.beginFrame();
     grf.waitForResourceUpdates();
 
     std::vector<uint32_t> readBack(count);
@@ -251,7 +251,7 @@ TEST_CASE("resource update: tex2D write", "[resource-update][image]") {
   std::vector<std::byte> pixels(width * height * 4, std::byte{0xAB});
   tex.write(std::span<const std::byte>(pixels), grf::Layout::ShaderReadOptimal);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -265,7 +265,7 @@ TEST_CASE("resource update: img2D write", "[resource-update][image]") {
   std::vector<std::byte> pixels(width * height * 4, std::byte{0xCD});
   img.write(std::span<const std::byte>(pixels), grf::Layout::General);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -283,7 +283,7 @@ TEST_CASE("resource update: tex3D per-slice writes", "[resource-update][image]")
   for (uint32_t z = 0; z < depth; ++z)
     tex.write(z, std::span<const std::byte>(sliceData), grf::Layout::ShaderReadOptimal);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -301,7 +301,7 @@ TEST_CASE("resource update: img3D per-slice writes", "[resource-update][image]")
   for (uint32_t z = 0; z < depth; ++z)
     img.write(z, std::span<const std::byte>(sliceData), grf::Layout::General);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -323,7 +323,7 @@ TEST_CASE("resource update: cubemap per-face writes", "[resource-update][image]"
     cube.write(face, std::span<const std::byte>(faceData), grf::Layout::ShaderReadOptimal);
   }
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -337,7 +337,7 @@ TEST_CASE("resource update: cubemap single face write", "[resource-update][image
   std::vector<std::byte> faceData(width * height * 4, std::byte{0x42});
   cube.write(grf::CubeFace::Top, std::span<const std::byte>(faceData), grf::Layout::ShaderReadOptimal);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }
@@ -359,7 +359,7 @@ TEST_CASE("resource update: mixed buffer and image writes in one flush", "[resou
   std::vector<std::byte> imgPixels(w * h * 4, std::byte{0x20});
   img.write(std::span<const std::byte>(imgPixels), grf::Layout::General);
 
-  grf.beginResourceUpdates();
+  grf.beginFrame();
   grf.waitForResourceUpdates();
   SUCCEED();
 }

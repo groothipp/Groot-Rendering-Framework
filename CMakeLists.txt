@@ -35,6 +35,8 @@ set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/sampler.hpp
   ${GRF_PUBLIC_INCL_DIR}/shader.hpp
   ${GRF_PUBLIC_INCL_DIR}/structs.hpp
+  ${GRF_PUBLIC_INCL_DIR}/swapchain_image.hpp
+  ${GRF_PUBLIC_INCL_DIR}/sync.hpp
   ${GRF_PUBLIC_INCL_DIR}/tex.hpp
 )
 
@@ -54,6 +56,8 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/descriptor_heap.hpp
   ${GRF_INTERNAL_INCL_DIR}/grf.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
+  ${GRF_INTERNAL_INCL_DIR}/swapchain_image.hpp
+  ${GRF_INTERNAL_INCL_DIR}/sync.hpp
 )
 
 set(GRF_SOURCES
@@ -74,6 +78,8 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/grf.cpp
   ${GRF_SOURCE_DIR}/stb.cpp
+  ${GRF_SOURCE_DIR}/swapchain_image.cpp
+  ${GRF_SOURCE_DIR}/sync.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
 )
 
@@ -131,6 +137,7 @@ if(GRF_MAKE_TESTS)
   set(TEST_SOURCES
     ${TEST_SOURCE_DIR}/allocation.cpp
     ${TEST_SOURCE_DIR}/assembler.cpp
+    ${TEST_SOURCE_DIR}/frame.cpp
     ${TEST_SOURCE_DIR}/lexer.cpp
     ${TEST_SOURCE_DIR}/parser.cpp
     ${TEST_SOURCE_DIR}/resource_update.cpp

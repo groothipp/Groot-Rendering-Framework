@@ -4,9 +4,10 @@
 #include "internal/descriptor_heap.hpp"
 #include "internal/grf.hpp"
 #include "internal/log.hpp"
-#include "vulkan/vulkan.hpp"
+#include "internal/sync.hpp"
 
 #include "external/stb/stb_image.h"
+#include "public/sync.hpp"
 
 #include <vulkan/vulkan_beta.h>
 
@@ -31,21 +32,43 @@ GRF::GRF(const Settings& settings) {
 
 GRF::~GRF() = default;
 
-void GRF::run(std::function<void(double)> main) {
-  while (!glfwWindowShouldClose(m_impl->m_window)) {
-    glfwPollEvents();
-    m_impl->m_resourceManager->beginUpdates();
-    main(0.0);
-  }
-  m_impl->m_device.waitIdle();
+bool GRF::running(std::function<bool()> endCond) const {
+  return !glfwWindowShouldClose(m_impl->m_window) && !endCond();
 }
 
-void GRF::beginResourceUpdates() {
+std::pair<uint32_t, double> GRF::beginFrame() {
+  auto now = GRF::Impl::Clock::now();
+
+  if (m_impl->m_startTime == GRF::Impl::TimePoint{}) [[unlikely]]
+    m_impl->m_startTime = now;
+
+  if (m_impl->m_endTime == GRF::Impl::TimePoint{}) [[unlikely]]
+    m_impl->m_endTime = now;
+
+  glfwPollEvents();
   m_impl->m_resourceManager->beginUpdates();
+
+  double frameTime = GRF::Impl::Duration(m_impl->m_endTime - m_impl->m_startTime).count();
+  m_impl->m_startTime = now;
+
+  return { m_impl->m_frameIndex, frameTime };
+}
+
+SwapchainImage GRF::nextSwapchainImage() {
+  auto [res, index] = m_impl->m_device.acquireNextImageKHR(m_impl->m_swapchain, m_impl->g_timeout);
+  if (res != vk::Result::eSuccess)
+    GRF_PANIC("Failed to get next swapchain image: {}", vk::to_string(res));
+  return SwapchainImage(m_impl->m_swapchainImages[index]);
 }
 
 void GRF::waitForResourceUpdates() {
   m_impl->m_resourceManager->waitForUpdates();
+  m_impl->m_endTime = GRF::Impl::Clock::now();
+}
+
+void GRF::endFrame() {
+  m_impl->m_frameIndex = (m_impl->m_frameIndex + 1) % m_impl->m_settings.flightFrames;
+  m_impl->m_endTime = GRF::Impl::Clock::now();
 }
 
 Shader GRF::compileShader(ShaderType type, const std::string& path) {
@@ -232,6 +255,42 @@ Sampler GRF::createSampler(const SamplerSettings& settings) {
   return Sampler(impl);
 }
 
+Fence GRF::createFence(bool signaled) {
+  auto impl = std::make_shared<Fence::Impl>(
+    m_impl->m_nextSyncIndex,
+    m_impl->m_device.createFence(vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled })
+  );
+
+  m_impl->m_fences[m_impl->m_nextSyncIndex++] = impl;
+
+  return Fence(impl);
+}
+
+Semaphore GRF::createSemaphore() {
+  auto impl = std::make_shared<Semaphore::Impl>(
+    m_impl->m_nextSyncIndex,
+    m_impl->m_device.createSemaphore({})
+  );
+
+  m_impl->m_semaphores[m_impl->m_nextSyncIndex++] = impl;
+
+  return Semaphore(impl);
+}
+
+void GRF::waitFences(const std::vector<Fence>& fences) {
+  if (fences.empty()) {
+    log::warning("Attempted to wait on 0 fences");
+    return;
+  }
+
+  std::vector<vk::Fence> f;
+  for (const auto& fence : fences)
+    f.emplace_back(fence.m_impl->m_fence);
+
+  if (m_impl->m_device.waitForFences(f, true, m_impl->g_timeout) != vk::Result::eSuccess)
+    GRF_PANIC("Hung waiting for fences");
+}
+
 GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   std::vector<const char *> requiredExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -256,6 +315,8 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   m_shaderManager = std::make_unique<ShaderManager>(m_device);
   m_resourceManager = std::make_unique<ResourceManager>(m_allocator, m_transferQueue, m_device);
 
+  createSwapchain();
+
   log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
     std::string(GRF_VERSION),
     VK_VERSION_MAJOR(properties.apiVersion),
@@ -266,10 +327,22 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
 }
 
 GRF::Impl::~Impl() {
+  m_device.waitIdle();
+
+  for (auto& [id, fence] : m_fences)
+    m_device.destroyFence(fence->m_fence);
+
+  for (auto& [id, semaphore] : m_semaphores)
+    m_device.destroySemaphore(semaphore->m_semaphore);
+
   m_resourceManager->destroy();
   m_shaderManager->destroy();
   m_descriptorHeap->destroy();
   m_allocator->destroy();
+
+  for (const auto& img: m_swapchainImages)
+    m_device.destroyImageView(img->m_view);
+  m_device.destroySwapchainKHR(m_swapchain);
 
   m_device.destroy();
 
@@ -513,6 +586,88 @@ void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
     .enabledExtensionCount    = static_cast<uint32_t>(requiredExtensions.size()),
     .ppEnabledExtensionNames  = requiredExtensions.data(),
   });
+}
+
+void GRF::Impl::createSwapchain() {
+  const vk::SurfaceCapabilitiesKHR caps = m_gpu.getSurfaceCapabilitiesKHR(m_surface);
+
+  const vk::Format requestedFormat = static_cast<vk::Format>(m_settings.swapchainFormat);
+  vk::SurfaceFormatKHR chosenFormat{ .format = vk::Format::eUndefined };
+  for (const auto& candidate : m_gpu.getSurfaceFormatsKHR(m_surface)) {
+    if (candidate.format == requestedFormat) {
+      chosenFormat = candidate;
+      break;
+    }
+  }
+  if (chosenFormat.format == vk::Format::eUndefined)
+    GRF_PANIC("Requested swapchain format {} is not supported by the surface", vk::to_string(requestedFormat));
+
+  vk::PresentModeKHR requestedPresentMode;
+  switch (m_settings.presentMode) {
+    case PresentMode::VSync:     requestedPresentMode = vk::PresentModeKHR::eFifo;      break;
+    case PresentMode::Mailbox:   requestedPresentMode = vk::PresentModeKHR::eMailbox;   break;
+    case PresentMode::Immediate: requestedPresentMode = vk::PresentModeKHR::eImmediate; break;
+  }
+  vk::PresentModeKHR chosenPresentMode = vk::PresentModeKHR::eFifo;
+  for (const auto& candidate : m_gpu.getSurfacePresentModesKHR(m_surface)) {
+    if (candidate == requestedPresentMode) {
+      chosenPresentMode = candidate;
+      break;
+    }
+  }
+  if (chosenPresentMode != requestedPresentMode)
+    log::warning("Requested present mode {} not supported, falling back to FIFO",
+      vk::to_string(requestedPresentMode));
+
+  vk::Extent2D chosenExtent;
+  if (caps.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+    chosenExtent = caps.currentExtent;
+  } else {
+    auto [w, h] = m_settings.windowSize;
+    chosenExtent.width  = std::clamp(w, caps.minImageExtent.width,  caps.maxImageExtent.width);
+    chosenExtent.height = std::clamp(h, caps.minImageExtent.height, caps.maxImageExtent.height);
+  }
+
+  uint32_t imageCount = caps.minImageCount + 1;
+  if (caps.maxImageCount > 0 && imageCount > caps.maxImageCount)
+    imageCount = caps.maxImageCount;
+
+  vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment;
+  if (caps.supportedUsageFlags & vk::ImageUsageFlagBits::eTransferDst)
+    usage |= vk::ImageUsageFlagBits::eTransferDst;
+  if (caps.supportedUsageFlags & vk::ImageUsageFlagBits::eStorage)
+    usage |= vk::ImageUsageFlagBits::eStorage;
+
+  m_swapchain = m_device.createSwapchainKHR(vk::SwapchainCreateInfoKHR{
+    .surface          = m_surface,
+    .minImageCount    = imageCount,
+    .imageFormat      = chosenFormat.format,
+    .imageColorSpace  = chosenFormat.colorSpace,
+    .imageExtent      = chosenExtent,
+    .imageArrayLayers = 1,
+    .imageUsage       = usage,
+    .imageSharingMode = vk::SharingMode::eExclusive,
+    .preTransform     = caps.currentTransform,
+    .compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+    .presentMode      = chosenPresentMode,
+    .clipped          = vk::True,
+    .oldSwapchain     = nullptr,
+  });
+
+  auto imgs = m_device.getSwapchainImagesKHR(m_swapchain);
+  for (const auto& img : imgs) {
+    auto view = m_device.createImageView(vk::ImageViewCreateInfo{
+      .image    = img,
+      .viewType = vk::ImageViewType::e2D,
+      .format   = chosenFormat.format,
+      .subresourceRange = {
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .levelCount = 1,
+        .layerCount = 1,
+      },
+    });
+    m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view));
+  }
 }
 
 ImageData readImage(const std::string& path) {
