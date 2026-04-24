@@ -241,3 +241,125 @@ TEST_CASE("resource read: non-readable intent yields zeros", "[resource-read]") 
       CHECK(readBack[i] == 0u);
   }
 }
+
+TEST_CASE("resource update: tex2D write", "[resource-update][image]") {
+  grf::GRF grf;
+  const uint32_t width  = 64;
+  const uint32_t height = 64;
+  grf::Tex2D tex = grf.createTex2D(grf::Format::rgba8_unorm, width, height);
+
+  std::vector<std::byte> pixels(width * height * 4, std::byte{0xAB});
+  tex.write(std::span<const std::byte>(pixels), grf::Layout::ShaderReadOptimal);
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}
+
+TEST_CASE("resource update: img2D write", "[resource-update][image]") {
+  grf::GRF grf;
+  const uint32_t width  = 64;
+  const uint32_t height = 64;
+  grf::Img2D img = grf.createImg2D(grf::Format::rgba8_unorm, width, height);
+
+  std::vector<std::byte> pixels(width * height * 4, std::byte{0xCD});
+  img.write(std::span<const std::byte>(pixels), grf::Layout::General);
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}
+
+TEST_CASE("resource update: tex3D per-slice writes", "[resource-update][image]") {
+  grf::GRF grf;
+  const uint32_t width  = 32;
+  const uint32_t height = 32;
+  const uint32_t depth  = 4;
+  grf::Tex3D tex = grf.createTex3D(grf::Format::rgba8_unorm, width, height, depth);
+
+  const std::size_t sliceBytes = width * height * 4;
+  std::vector<std::byte> sliceData(sliceBytes, std::byte{0x01});
+
+  for (uint32_t z = 0; z < depth; ++z)
+    tex.write(z, std::span<const std::byte>(sliceData), grf::Layout::ShaderReadOptimal);
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}
+
+TEST_CASE("resource update: img3D per-slice writes", "[resource-update][image]") {
+  grf::GRF grf;
+  const uint32_t width  = 32;
+  const uint32_t height = 32;
+  const uint32_t depth  = 4;
+  grf::Img3D img = grf.createImg3D(grf::Format::rgba8_unorm, width, height, depth);
+
+  const std::size_t sliceBytes = width * height * 4;
+  std::vector<std::byte> sliceData(sliceBytes, std::byte{0x02});
+
+  for (uint32_t z = 0; z < depth; ++z)
+    img.write(z, std::span<const std::byte>(sliceData), grf::Layout::General);
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}
+
+TEST_CASE("resource update: cubemap per-face writes", "[resource-update][image]") {
+  grf::GRF grf;
+  const uint32_t width  = 64;
+  const uint32_t height = 64;
+  grf::Cubemap cube = grf.createCubemap(grf::Format::rgba8_unorm, width, height);
+
+  const std::size_t faceBytes = width * height * 4;
+  std::vector<std::byte> faceData(faceBytes, std::byte{0xFF});
+
+  for (auto face : {
+    grf::CubeFace::Right, grf::CubeFace::Left,
+    grf::CubeFace::Top,   grf::CubeFace::Bottom,
+    grf::CubeFace::Back,  grf::CubeFace::Front,
+  }) {
+    cube.write(face, std::span<const std::byte>(faceData), grf::Layout::ShaderReadOptimal);
+  }
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}
+
+TEST_CASE("resource update: cubemap single face write", "[resource-update][image]") {
+  grf::GRF grf;
+  const uint32_t width  = 64;
+  const uint32_t height = 64;
+  grf::Cubemap cube = grf.createCubemap(grf::Format::rgba8_unorm, width, height);
+
+  std::vector<std::byte> faceData(width * height * 4, std::byte{0x42});
+  cube.write(grf::CubeFace::Top, std::span<const std::byte>(faceData), grf::Layout::ShaderReadOptimal);
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}
+
+TEST_CASE("resource update: mixed buffer and image writes in one flush", "[resource-update][image]") {
+  grf::GRF grf;
+
+  grf::Buffer buf = grf.createBuffer(grf::BufferIntent::GPUOnly, sizeof(Uniforms));
+  buf.write(Uniforms{ .frame = 1, .time = 0.5f, .flags = 2 });
+
+  const uint32_t w = 32;
+  const uint32_t h = 32;
+
+  grf::Tex2D tex = grf.createTex2D(grf::Format::rgba8_unorm, w, h);
+  std::vector<std::byte> texPixels(w * h * 4, std::byte{0x10});
+  tex.write(std::span<const std::byte>(texPixels), grf::Layout::ShaderReadOptimal);
+
+  grf::Img2D img = grf.createImg2D(grf::Format::rgba8_unorm, w, h);
+  std::vector<std::byte> imgPixels(w * h * 4, std::byte{0x20});
+  img.write(std::span<const std::byte>(imgPixels), grf::Layout::General);
+
+  grf.beginResourceUpdates();
+  grf.waitForResourceUpdates();
+  SUCCEED();
+}

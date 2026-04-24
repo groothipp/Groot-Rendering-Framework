@@ -2,7 +2,7 @@
 
 #include "internal/allocator.hpp"
 
-#include <unordered_map>
+#include <cstdint>
 #include <future>
 #include <vector>
 
@@ -13,22 +13,47 @@ struct Queue {
   vk::Queue queue = nullptr;
 };
 
+struct BufferUpdateInfo {
+  std::shared_ptr<Buffer::Impl> buf;
+  std::vector<std::byte>        data;
+  std::size_t                   offset;
+};
+
+struct ImageUpdateInfo {
+  std::shared_ptr<Image>  img;
+  std::vector<std::byte>  data;
+  vk::BufferImageCopy     region;
+  vk::ImageLayout         layout;
+  bool                    isCubemap;
+};
+
+struct ImageWriteInfo {
+  std::shared_ptr<Image>      img;
+  std::span<const std::byte>  data;
+  vk::ImageLayout             layout;
+  int32_t                     depth = 1;
+  CubeFace                    face = CubeFace::Right;
+  bool                        isCubemap = false;
+};
+
 class ResourceManager {
-  using BufferUpdateMap = std::unordered_map<
-    vk::DeviceAddress, std::pair<std::vector<std::byte>, std::size_t>
-  >;
+  static constexpr uint64_t     g_resourceFenceTimeout = 1000000000ul;
 
-  std::unique_ptr<Allocator>& m_allocator;
-  Queue&                      m_transferQueue;
-  vk::Device&                 m_device;
+  std::unique_ptr<Allocator>&   m_allocator;
+  Queue&                        m_transferQueue;
+  vk::Device&                   m_device;
 
-  vk::CommandPool             m_transferPool = nullptr;
-  vk::CommandBuffer           m_transferCmd = nullptr;
+  vk::CommandPool               m_transferPool = nullptr;
+  vk::CommandBuffer             m_bufferCmd = nullptr;
+  vk::CommandBuffer             m_imageCmd = nullptr;
 
-  BufferUpdateMap             m_bufferUpdates;
+  std::vector<BufferUpdateInfo> m_bufferUpdates;
+  vk::Fence                     m_bufferUpdateFence = nullptr;
+  std::future<void>             m_bufferUpdateFuture;
 
-  vk::Fence                   m_bufferUpdateFence = nullptr;
-  std::future<void>           m_bufferUpdateFuture;
+  std::vector<ImageUpdateInfo>  m_imageUpdates;
+  vk::Fence                     m_imageUpdateFence = nullptr;
+  std::future<void>             m_imageUpdateFuture;
 
 public:
   ResourceManager(std::unique_ptr<Allocator>&, Queue&, vk::Device&);
@@ -36,13 +61,17 @@ public:
 
   void destroy();
 
-  void writeBuffer(vk::DeviceAddress, std::span<const std::byte>, std::size_t);
+  void writeBuffer(const BufferUpdateInfo&);
   void readBuffer(vk::DeviceAddress, std::span<std::byte>, std::size_t);
+
+  void writeImage(const ImageWriteInfo&);
+
   void beginUpdates();
   void waitForUpdates();
 
 private:
-  void updateBuffers(BufferUpdateMap);
+  void updateBuffers(std::vector<BufferUpdateInfo>);
+  void updateImages(std::vector<ImageUpdateInfo>);
 };
 
 }

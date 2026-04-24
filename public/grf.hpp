@@ -8,8 +8,10 @@
 #include "./img.hpp"
 #include "./sampler.hpp"
 
-#include <memory>
+#include <cstdint>
 #include <functional>
+#include <memory>
+#include <string>
 
 namespace grf {
 
@@ -36,5 +38,7 @@ public:
   Img3D createImg3D(Format, uint32_t, uint32_t, uint32_t);
   Sampler createSampler(const SamplerSettings&);
 };
+
+ImageData readImage(const std::string&);
 
 }

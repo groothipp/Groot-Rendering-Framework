@@ -106,4 +106,12 @@ enum class QueueType {
   Transfer
 };
 
+enum class Layout {
+  Undefined = 0,
+  General = 1,
+  ShaderReadOptimal = 5,
+  TransferSrcOptimal = 6,
+  TransferDstOptimal = 7
+};
+
 }

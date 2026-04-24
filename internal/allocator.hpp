@@ -64,17 +64,14 @@ public:
   std::shared_ptr<Image> allocateImage(const ImageAllocInfo&);
   std::shared_ptr<Sampler::Impl> createSampler(const SamplerSettings&);
 
-  std::optional<std::pair<vk::Buffer&, vk::Buffer&>> writeBuffer(
-    vk::DeviceAddress, std::span<const std::byte>, std::size_t
-  );
+  std::optional<vk::Buffer> writeBuffer(vk::DeviceAddress, std::span<const std::byte>, std::size_t);
   void readBuffer(vk::DeviceAddress, std::span<std::byte>, std::size_t);
+  vk::Buffer stage(std::span<const std::byte>);
 
   void destroyStagingBuffers();
 
 private:
   std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> getVMAflags(BufferIntent) const;
-
-  vk::Buffer& createStagingBuffer(std::span<const std::byte>, std::size_t);
 };
 
 }

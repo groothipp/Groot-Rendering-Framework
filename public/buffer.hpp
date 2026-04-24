@@ -11,6 +11,7 @@ namespace grf {
 class Buffer {
   friend class Allocator;
   friend class ResourceManager;
+  friend struct BufferUpdateInfo;
 
   class Impl;
   std::weak_ptr<Impl> m_impl;

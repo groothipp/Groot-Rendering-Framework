@@ -41,7 +41,11 @@ void Buffer::scheduleWrite(std::span<const std::byte> data, std::size_t offset) 
   if (offset + data.size() > ptr->m_size)
     GRF_PANIC("Out of bounds buffer write. Offset + size should be less than or equal to the allocation size");
 
-  ptr->m_resourceManager->writeBuffer(ptr->m_address, data, offset);
+  ptr->m_resourceManager->writeBuffer(BufferUpdateInfo{
+    .buf    = ptr,
+    .data   = std::vector<std::byte>(data.begin(), data.end()),
+    .offset = offset
+  });
 }
 
 void Buffer::retrieveData(std::span<std::byte> data, std::size_t offset) {

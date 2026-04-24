@@ -1,6 +1,7 @@
 #include "public/tex.hpp"
 
 #include "internal/resources/image.hpp"
+#include "internal/resources/resource_manager.hpp"
 #include "internal/log.hpp"
 
 namespace grf {
@@ -40,12 +41,16 @@ bool Tex2D::valid() const {
   return ptr != nullptr;
 }
 
-void Tex2D::write(std::span<const std::byte>) {
+void Tex2D::write(std::span<const std::byte> data, Layout layout) {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to write to invalid Tex2D");
 
-}
-
-void Tex2D::write(const std::string&) {
-
+  ptr->m_resourceManager->writeImage(ImageWriteInfo{
+    .img    = ptr,
+    .data   = data,
+    .layout = static_cast<vk::ImageLayout>(layout)
+  });
 }
 
 Tex3D::Tex3D(std::weak_ptr<Image> img) : m_img(img) {}
@@ -83,12 +88,17 @@ bool Tex3D::valid() const {
   return ptr != nullptr;
 }
 
-void Tex3D::write(uint32_t index, std::span<const std::byte>) {
+void Tex3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to write to invalid Tex3D");
 
-}
-
-void Tex3D::write(uint32_t index, const std::string&) {
-
+  ptr->m_resourceManager->writeImage(ImageWriteInfo{
+    .img    = ptr,
+    .data   = data,
+    .layout = static_cast<vk::ImageLayout>(layout),
+    .depth  = static_cast<int32_t>(depth)
+  });
 }
 
 Cubemap::Cubemap(std::weak_ptr<Image> img) : m_img(img) {}
@@ -126,12 +136,18 @@ bool Cubemap::valid() const {
   return ptr != nullptr;
 }
 
-void Cubemap::write(CubeFace face, std::span<const std::byte>) {
+void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layout) {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to write to invalid Cubemap");
 
-}
-
-void Cubemap::write(CubeFace face, const std::string&) {
-
+  ptr->m_resourceManager->writeImage(ImageWriteInfo{
+    .img        = ptr,
+    .data       = data,
+    .layout     = static_cast<vk::ImageLayout>(layout),
+    .face       = face,
+    .isCubemap  = true
+  });
 }
 
 }

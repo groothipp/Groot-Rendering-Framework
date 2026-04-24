@@ -3,6 +3,7 @@
 #include "internal/resources/resource_manager.hpp"
 #include "internal/allocator.hpp"
 #include "internal/log.hpp"
+#include <mutex>
 
 namespace grf {
 
@@ -189,7 +190,7 @@ std::shared_ptr<Sampler::Impl> Allocator::createSampler(const SamplerSettings& s
   return impl;
 }
 
-std::optional<std::pair<vk::Buffer&, vk::Buffer&>> Allocator::writeBuffer(
+std::optional<vk::Buffer> Allocator::writeBuffer(
   vk::DeviceAddress address, std::span<const std::byte> data, std::size_t offset
 ) {
   std::lock_guard<std::mutex> g(m_mutex);
@@ -213,8 +214,7 @@ std::optional<std::pair<vk::Buffer&, vk::Buffer&>> Allocator::writeBuffer(
     return std::nullopt;
   }
 
-  vk::Buffer& stagingBuffer = createStagingBuffer(data, offset);
-  return std::optional<std::pair<vk::Buffer&, vk::Buffer&>>({ impl->m_buffer, stagingBuffer });
+  return std::make_optional(stage(data));
 }
 
 void Allocator::readBuffer(vk::DeviceAddress address, std::span<std::byte> data, std::size_t offset) {
@@ -228,36 +228,9 @@ void Allocator::readBuffer(vk::DeviceAddress address, std::span<std::byte> data,
   vmaCopyAllocationToMemory(m_allocator, impl->m_allocation, offset, data.data(), data.size());
 }
 
-void Allocator::destroyStagingBuffers() {
-  for (auto& [id, allocInfo] : m_staging) {
-    auto [allocation, buffer] = allocInfo;
-    vmaDestroyBuffer(m_allocator, buffer, allocation);
-  }
-  m_nextStagingBuffer = 0;
-}
+vk::Buffer Allocator::stage(std::span<const std::byte> data) {
+  std::lock_guard<std::mutex> g(m_mutex);
 
-std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> Allocator::getVMAflags(BufferIntent intent) const {
-  switch (intent) {
-    case BufferIntent::GPUOnly:
-    case BufferIntent::SingleUpdate:
-      return {
-        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-      };
-    case BufferIntent::FrequentUpdate:
-      return {
-        VMA_MEMORY_USAGE_AUTO,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
-      };
-    case BufferIntent::Readable:
-      return {
-        VMA_MEMORY_USAGE_AUTO,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
-      };
-  }
-}
-
-vk::Buffer& Allocator::createStagingBuffer(std::span<const std::byte> data, std::size_t offset) {
   vk::BufferCreateInfo bufferCreateInfo{
     .size   = data.size(),
     .usage  = vk::BufferUsageFlagBits::eTransferSrc,
@@ -292,6 +265,36 @@ vk::Buffer& Allocator::createStagingBuffer(std::span<const std::byte> data, std:
   );
 
   return m_staging.at(m_nextStagingBuffer++).second;
+}
+
+void Allocator::destroyStagingBuffers() {
+  for (auto& [id, allocInfo] : m_staging) {
+    auto [allocation, buffer] = allocInfo;
+    vmaDestroyBuffer(m_allocator, buffer, allocation);
+  }
+  m_staging.clear();
+  m_nextStagingBuffer = 0;
+}
+
+std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> Allocator::getVMAflags(BufferIntent intent) const {
+  switch (intent) {
+    case BufferIntent::GPUOnly:
+    case BufferIntent::SingleUpdate:
+      return {
+        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+      };
+    case BufferIntent::FrequentUpdate:
+      return {
+        VMA_MEMORY_USAGE_AUTO,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
+      };
+    case BufferIntent::Readable:
+      return {
+        VMA_MEMORY_USAGE_AUTO,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT
+      };
+  }
 }
 
 }

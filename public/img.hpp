@@ -20,9 +20,7 @@ public:
   Format format() const;
   uint32_t heapIndex() const;
   bool valid() const;
-
-  void write(const std::string&);
-  void write(std::span<const std::byte>);
+  void write(std::span<const std::byte>, Layout);
 
 private:
   explicit Img2D(std::weak_ptr<Image>);
@@ -39,9 +37,7 @@ public:
   Format format() const;
   uint32_t heapIndex() const;
   bool valid() const;
-
-  void write(uint32_t, const std::string&);
-  void write(uint32_t, std::span<const std::byte>);
+  void write(uint32_t, std::span<const std::byte>, Layout);
 
 private:
   explicit Img3D(std::weak_ptr<Image>);

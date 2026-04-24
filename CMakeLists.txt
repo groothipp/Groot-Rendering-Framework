@@ -73,12 +73,18 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/allocator.cpp
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/grf.cpp
+  ${GRF_SOURCE_DIR}/stb.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
 )
 
 set_source_files_properties(
   ${GRF_SOURCE_DIR}/vma.cpp
   PROPERTIES COMPILE_FLAGS "-Wno-nullability-completeness"
+)
+
+set_source_files_properties(
+  ${GRF_SOURCE_DIR}/stb.cpp
+  PROPERTIES COMPILE_FLAGS "-Wno-unused-but-set-variable -Wno-unused-function"
 )
 
 add_library(grf ${GRF_PUBLIC_HEADERS} ${GRF_INTERNAL_HEADERS} ${GRF_SOURCES})

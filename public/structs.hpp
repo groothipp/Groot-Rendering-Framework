@@ -3,6 +3,7 @@
 #include "./enums.hpp"
 
 #include <string>
+#include <vector>
 
 namespace grf {
 
@@ -19,6 +20,12 @@ struct SamplerSettings {
   SampleMode vMode = SampleMode::Repeat;
   SampleMode wMode = SampleMode::Repeat;
   bool anisotropicFiltering = true;
+};
+
+struct ImageData {
+  std::vector<std::byte> bytes;
+  uint32_t               width;
+  uint32_t               height;
 };
 
 }

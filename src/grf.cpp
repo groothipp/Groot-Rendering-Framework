@@ -6,8 +6,11 @@
 #include "internal/log.hpp"
 #include "vulkan/vulkan.hpp"
 
+#include "external/stb/stb_image.h"
+
 #include <vulkan/vulkan_beta.h>
 
+#include <cstring>
 #include <sstream>
 #include <set>
 
@@ -510,6 +513,24 @@ void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
     .enabledExtensionCount    = static_cast<uint32_t>(requiredExtensions.size()),
     .ppEnabledExtensionNames  = requiredExtensions.data(),
   });
+}
+
+ImageData readImage(const std::string& path) {
+  int width = 0, height = 0, channels = 0;
+  stbi_uc* pixels = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+  if (pixels == nullptr)
+    GRF_PANIC("Failed to load image '{}': {}", path, stbi_failure_reason());
+
+  const std::size_t byteCount = static_cast<std::size_t>(width) * height * 4;
+  std::vector<std::byte> bytes(byteCount);
+  std::memcpy(bytes.data(), pixels, byteCount);
+
+  stbi_image_free(pixels);
+  return {
+    .bytes  = std::move(bytes),
+    .width  = static_cast<uint32_t>(width),
+    .height = static_cast<uint32_t>(height),
+  };
 }
 
 }

@@ -1,6 +1,7 @@
 #include "public/img.hpp"
 
 #include "internal/resources/image.hpp"
+#include "internal/resources/resource_manager.hpp"
 #include "internal/log.hpp"
 
 namespace grf {
@@ -40,12 +41,16 @@ bool Img2D::valid() const {
   return ptr != nullptr;
 }
 
-void Img2D::write(std::span<const std::byte>) {
+void Img2D::write(std::span<const std::byte> data, Layout layout) {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to write to invalid Img2D");
 
-}
-
-void Img2D::write(const std::string&) {
-
+  ptr->m_resourceManager->writeImage(ImageWriteInfo{
+    .img    = ptr,
+    .data   = data,
+    .layout = static_cast<vk::ImageLayout>(layout)
+  });
 }
 
 Img3D::Img3D(std::weak_ptr<Image> img) : m_img(img) {}
@@ -83,12 +88,23 @@ bool Img3D::valid() const {
   return ptr != nullptr;
 }
 
-void Img3D::write(uint32_t index, std::span<const std::byte>) {
+void Img3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to write to invalid Img3D");
 
-}
+  if (depth > ptr->m_depth)
+    GRF_PANIC("Tried to write to invalid depth of Img3D");
 
-void Img3D::write(uint32_t index, const std::string&) {
+  if (data.size() > ptr->m_size)
+    GRF_PANIC("Out of bounds Img3D write. Byte size should be less than or equal to the allocation size");
 
+  ptr->m_resourceManager->writeImage(ImageWriteInfo{
+    .img    = ptr,
+    .data   = data,
+    .layout = static_cast<vk::ImageLayout>(layout),
+    .depth  = static_cast<int32_t>(depth)
+  });
 }
 
 }
