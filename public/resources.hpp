@@ -19,12 +19,12 @@ class Buffer {
   friend struct BufferUpdateInfo;
 
   class Impl;
-  std::weak_ptr<Impl> m_impl;
+  std::shared_ptr<Impl> m_impl;
 
 public:
+
   std::size_t size() const;
   BufferIntent intent() const;
-  bool valid() const;
   uint64_t address() const;
 
   template <typename T>
@@ -56,7 +56,7 @@ public:
   }
 
 private:
-  Buffer(std::weak_ptr<Impl>);
+  Buffer(std::shared_ptr<Impl>);
   void scheduleWrite(std::span<const std::byte>, std::size_t);
   void retrieveData(std::span<std::byte>, std::size_t);
 };
@@ -64,101 +64,101 @@ private:
 class Img2D {
   friend class GRF;
 
-  std::weak_ptr<Image> m_img;
+  std::shared_ptr<Image> m_img;
 
 public:
+
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  bool valid() const;
   void write(std::span<const std::byte>, Layout);
 
 private:
-  explicit Img2D(std::weak_ptr<Image>);
+  explicit Img2D(std::shared_ptr<Image>);
 };
 
 class Img3D {
   friend class GRF;
 
-  std::weak_ptr<Image> m_img;
+  std::shared_ptr<Image> m_img;
 
 public:
+
   std::tuple<uint32_t, uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  bool valid() const;
   void write(uint32_t, std::span<const std::byte>, Layout);
 
 private:
-  explicit Img3D(std::weak_ptr<Image>);
+  explicit Img3D(std::shared_ptr<Image>);
 };
 
 class Tex2D {
   friend class GRF;
 
-  std::weak_ptr<Image> m_img;
+  std::shared_ptr<Image> m_img;
 
 public:
+
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  bool valid() const;
   void write(std::span<const std::byte>, Layout);
 
 private:
-  explicit Tex2D(std::weak_ptr<Image>);
+  explicit Tex2D(std::shared_ptr<Image>);
 };
 
 class Tex3D {
   friend class GRF;
 
-  std::weak_ptr<Image> m_img;
+  std::shared_ptr<Image> m_img;
 
 public:
+
   std::tuple<uint32_t, uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  bool valid() const;
   void write(uint32_t, std::span<const std::byte>, Layout);
 
 private:
-  explicit Tex3D(std::weak_ptr<Image>);
+  explicit Tex3D(std::shared_ptr<Image>);
 };
 
 class Cubemap {
   friend class GRF;
 
-  std::weak_ptr<Image> m_img;
+  std::shared_ptr<Image> m_img;
 
 public:
+
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  bool valid() const;
   void write(CubeFace, std::span<const std::byte>, Layout);
 
 private:
-  explicit Cubemap(std::weak_ptr<Image>);
+  explicit Cubemap(std::shared_ptr<Image>);
 };
 
 class DepthImage {
   friend class GRF;
 
-  std::weak_ptr<Image> m_img;
+  std::shared_ptr<Image> m_img;
 
 public:
+
   std::pair<uint32_t, uint32_t> dims() const;
   Format format() const;
   uint32_t heapIndex() const;
-  bool valid() const;
 
 private:
-  explicit DepthImage(std::weak_ptr<Image>);
+  explicit DepthImage(std::shared_ptr<Image>);
 };
 
 class Sampler {
@@ -167,9 +167,10 @@ class Sampler {
   friend class DescriptorHeap;
 
   class Impl;
-  std::weak_ptr<Impl> m_impl;
+  std::shared_ptr<Impl> m_impl;
 
 public:
+
   Filter magFilter() const;
   Filter minFilter() const;
   SampleMode uMode() const;
@@ -177,10 +178,9 @@ public:
   SampleMode wMode() const;
   bool anisotropicFiltering() const;
   uint32_t heapIndex() const;
-  bool valid() const;
 
 private:
-  explicit Sampler(std::weak_ptr<Impl>);
+  explicit Sampler(std::shared_ptr<Impl>);
 };
 
 class SwapchainImage {
@@ -190,7 +190,6 @@ class SwapchainImage {
   std::shared_ptr<Impl> m_impl;
 
 public:
-  bool valid() const;
   uint32_t heapIndex() const;
 
 private:

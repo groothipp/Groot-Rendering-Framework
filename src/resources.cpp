@@ -9,78 +9,75 @@
 
 namespace grf {
 
-Buffer::Buffer(std::weak_ptr<Buffer::Impl> impl) : m_impl(impl) {}
+Buffer::Buffer(std::shared_ptr<Buffer::Impl> impl) : m_impl(impl) {}
 
 std::size_t Buffer::size() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access size of invalid buffer");
-  return ptr->m_size;
+  return m_impl->m_size;
 }
 
 BufferIntent Buffer::intent() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access intent of invalid buffer");
-  return ptr->m_intent;
-}
-
-bool Buffer::valid() const {
-  auto ptr = m_impl.lock();
-  return ptr != nullptr;
+  return m_impl->m_intent;
 }
 
 uint64_t Buffer::address() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access address of invalid buffer");
-  return ptr->m_address;
+  return m_impl->m_address;
 }
 
 void Buffer::scheduleWrite(std::span<const std::byte> data, std::size_t offset) {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to schedule buffer write for invalid buffer");
-
-  if (offset + data.size() > ptr->m_size)
+  if (offset + data.size() > m_impl->m_size)
     GRF_PANIC("Out of bounds buffer write. Offset + size should be less than or equal to the allocation size");
 
-  ptr->m_resourceManager->writeBuffer(BufferUpdateInfo{
-    .buf    = ptr,
+  auto rm = m_impl->m_resourceManager.lock();
+  if (rm == nullptr) return;
+
+  rm->writeBuffer(BufferUpdateInfo{
+    .buf    = m_impl,
     .data   = std::vector<std::byte>(data.begin(), data.end()),
     .offset = offset
   });
 }
 
 void Buffer::retrieveData(std::span<std::byte> data, std::size_t offset) {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-      GRF_PANIC("Tried to retrieve data from invalid buffer");
-
-  if (ptr->m_intent != BufferIntent::Readable) {
+  if (m_impl->m_intent != BufferIntent::Readable) {
     log::warning("Attempted to read from a buffer that was not made with the readable intent");
     return;
   }
 
-  if (offset + data.size() > ptr->m_size)
+  if (offset + data.size() > m_impl->m_size)
     GRF_PANIC("Out of bounds buffer read. Offset + size should be less than or equal to the allocation size");
 
-  ptr->m_resourceManager->readBuffer(ptr->m_address, data, offset);
+  auto rm = m_impl->m_resourceManager.lock();
+  if (rm == nullptr) return;
+
+  rm->readBuffer(m_impl->m_address, data, offset);
 }
 
 Buffer::Impl::Impl(
-  std::unique_ptr<ResourceManager>& resourceManager, VmaAllocation alloc,
+  std::weak_ptr<ResourceManager> resourceManager, VmaAllocation alloc,
   vk::Buffer buffer, vk::DeviceAddress addr, vk::DeviceSize size, BufferIntent intent
 )
-: m_allocation(alloc),
+: m_resourceManager(resourceManager),
+  m_allocation(alloc),
   m_buffer(buffer),
   m_address(addr),
   m_size(size),
-  m_intent(intent),
-  m_resourceManager(resourceManager)
+  m_intent(intent)
 {}
 
-Image::Image(std::unique_ptr<ResourceManager>& resourceManager, const ImageInfo& info)
+Buffer::Impl::~Impl() {
+  auto rm = m_resourceManager.lock();
+  if (rm == nullptr) return;
+
+  rm->scheduleDestruction(Grave{
+    .kind       = ResourceKind::Buffer,
+    .retireAt   = m_lastUseFrame + rm->flightFrames(),
+    .buffer     = m_buffer,
+    .allocation = m_allocation,
+    .address    = m_address
+  });
+}
+
+Image::Image(std::weak_ptr<ResourceManager> resourceManager, const ImageInfo& info)
 : m_resourceManager(resourceManager),
   m_id(info.id),
   m_allocation(info.alloc),
@@ -92,244 +89,168 @@ Image::Image(std::unique_ptr<ResourceManager>& resourceManager, const ImageInfo&
   m_depth(info.depth)
 {}
 
-Img2D::Img2D(std::weak_ptr<Image> img) : m_img(img) {}
+Image::~Image() {
+  auto rm = m_resourceManager.lock();
+  if (rm == nullptr) return;
+
+  rm->scheduleDestruction(Grave{
+    .kind       = ResourceKind::Image,
+    .retireAt   = m_lastUseFrame + rm->flightFrames(),
+    .image      = m_image,
+    .view       = m_view,
+    .allocation = m_allocation,
+    .imageId    = m_id
+  });
+}
+
+Img2D::Img2D(std::shared_ptr<Image> img) : m_img(img) {}
 
 std::pair<uint32_t, uint32_t> Img2D::dims() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Img2D");
-  return { ptr->m_width, ptr->m_height };
+  return { m_img->m_width, m_img->m_height };
 }
 
 std::size_t Img2D::size() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access size of invalid Img2D");
-  return ptr->m_size;
+  return m_img->m_size;
 }
 
 Format Img2D::format() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Img2D");
-  return static_cast<Format>(ptr->m_format);
+  return static_cast<Format>(m_img->m_format);
 }
 
 uint32_t Img2D::heapIndex() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Img2D");
-  return ptr->m_heapIndexSampled;
-}
-
-bool Img2D::valid() const {
-  auto ptr = m_img.lock();
-  return ptr != nullptr;
+  return m_img->m_heapIndexSampled;
 }
 
 void Img2D::write(std::span<const std::byte> data, Layout layout) {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to write to invalid Img2D");
+  auto rm = m_img->m_resourceManager.lock();
+  if (rm == nullptr) return;
 
-  ptr->m_resourceManager->writeImage(ImageWriteInfo{
-    .img    = ptr,
+  rm->writeImage(ImageWriteInfo{
+    .img    = m_img,
     .data   = data,
     .layout = static_cast<vk::ImageLayout>(layout)
   });
 }
 
-Img3D::Img3D(std::weak_ptr<Image> img) : m_img(img) {}
+Img3D::Img3D(std::shared_ptr<Image> img) : m_img(img) {}
 
 std::tuple<uint32_t, uint32_t, uint32_t> Img3D::dims() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Img3D");
-  return { ptr->m_width, ptr->m_height, ptr->m_depth };
+  return { m_img->m_width, m_img->m_height, m_img->m_depth };
 }
 
 std::size_t Img3D::size() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access size of invalid Img3D");
-  return ptr->m_size;
+  return m_img->m_size;
 }
 
 Format Img3D::format() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Img3D");
-  return static_cast<Format>(ptr->m_format);
+  return static_cast<Format>(m_img->m_format);
 }
 
 uint32_t Img3D::heapIndex() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Img3D");
-  return ptr->m_heapIndexSampled;
-}
-
-bool Img3D::valid() const {
-  auto ptr = m_img.lock();
-  return ptr != nullptr;
+  return m_img->m_heapIndexSampled;
 }
 
 void Img3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to write to invalid Img3D");
-
-  if (depth > ptr->m_depth)
+  if (depth > m_img->m_depth)
     GRF_PANIC("Tried to write to invalid depth of Img3D");
 
-  if (data.size() > ptr->m_size)
+  if (data.size() > m_img->m_size)
     GRF_PANIC("Out of bounds Img3D write. Byte size should be less than or equal to the allocation size");
 
-  ptr->m_resourceManager->writeImage(ImageWriteInfo{
-    .img    = ptr,
+  auto rm = m_img->m_resourceManager.lock();
+  if (rm == nullptr) return;
+
+  rm->writeImage(ImageWriteInfo{
+    .img    = m_img,
     .data   = data,
     .layout = static_cast<vk::ImageLayout>(layout),
     .depth  = static_cast<int32_t>(depth)
   });
 }
 
-Tex2D::Tex2D(std::weak_ptr<Image> img) : m_img(img) {}
+Tex2D::Tex2D(std::shared_ptr<Image> img) : m_img(img) {}
 
 std::pair<uint32_t, uint32_t> Tex2D::dims() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Tex2D");
-  return { ptr->m_width, ptr->m_height };
+  return { m_img->m_width, m_img->m_height };
 }
 
 std::size_t Tex2D::size() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access size of invalid Tex2D");
-  return ptr->m_size;
+  return m_img->m_size;
 }
 
 Format Tex2D::format() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Tex2D");
-  return static_cast<Format>(ptr->m_format);
+  return static_cast<Format>(m_img->m_format);
 }
 
 uint32_t Tex2D::heapIndex() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Tex2D");
-  return ptr->m_heapIndexSampled;
-}
-
-bool Tex2D::valid() const {
-  auto ptr = m_img.lock();
-  return ptr != nullptr;
+  return m_img->m_heapIndexSampled;
 }
 
 void Tex2D::write(std::span<const std::byte> data, Layout layout) {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to write to invalid Tex2D");
+  auto rm = m_img->m_resourceManager.lock();
+  if (rm == nullptr) return;
 
-  ptr->m_resourceManager->writeImage(ImageWriteInfo{
-    .img    = ptr,
+  rm->writeImage(ImageWriteInfo{
+    .img    = m_img,
     .data   = data,
     .layout = static_cast<vk::ImageLayout>(layout)
   });
 }
 
-Tex3D::Tex3D(std::weak_ptr<Image> img) : m_img(img) {}
+Tex3D::Tex3D(std::shared_ptr<Image> img) : m_img(img) {}
 
 std::tuple<uint32_t, uint32_t, uint32_t> Tex3D::dims() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Tex3D");
-  return { ptr->m_width, ptr->m_height, ptr->m_depth };
+  return { m_img->m_width, m_img->m_height, m_img->m_depth };
 }
 
 std::size_t Tex3D::size() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access size of invalid Tex3D");
-  return ptr->m_size;
+  return m_img->m_size;
 }
 
 Format Tex3D::format() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Tex3D");
-  return static_cast<Format>(ptr->m_format);
+  return static_cast<Format>(m_img->m_format);
 }
 
 uint32_t Tex3D::heapIndex() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Tex3D");
-  return ptr->m_heapIndexSampled;
-}
-
-bool Tex3D::valid() const {
-  auto ptr = m_img.lock();
-  return ptr != nullptr;
+  return m_img->m_heapIndexSampled;
 }
 
 void Tex3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to write to invalid Tex3D");
+  auto rm = m_img->m_resourceManager.lock();
+  if (rm == nullptr) return;
 
-  ptr->m_resourceManager->writeImage(ImageWriteInfo{
-    .img    = ptr,
+  rm->writeImage(ImageWriteInfo{
+    .img    = m_img,
     .data   = data,
     .layout = static_cast<vk::ImageLayout>(layout),
     .depth  = static_cast<int32_t>(depth)
   });
 }
 
-Cubemap::Cubemap(std::weak_ptr<Image> img) : m_img(img) {}
+Cubemap::Cubemap(std::shared_ptr<Image> img) : m_img(img) {}
 
 std::pair<uint32_t, uint32_t> Cubemap::dims() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Cubemap");
-  return { ptr->m_width, ptr->m_height };
+  return { m_img->m_width, m_img->m_height };
 }
 
 std::size_t Cubemap::size() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access size of invalid Cubemap");
-  return ptr->m_size;
+  return m_img->m_size;
 }
 
 Format Cubemap::format() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Cubemap");
-  return static_cast<Format>(ptr->m_format);
+  return static_cast<Format>(m_img->m_format);
 }
 
 uint32_t Cubemap::heapIndex() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid Cubemap");
-  return ptr->m_heapIndexSampled;
-}
-
-bool Cubemap::valid() const {
-  auto ptr = m_img.lock();
-  return ptr != nullptr;
+  return m_img->m_heapIndexSampled;
 }
 
 void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layout) {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to write to invalid Cubemap");
+  auto rm = m_img->m_resourceManager.lock();
+  if (rm == nullptr) return;
 
-  ptr->m_resourceManager->writeImage(ImageWriteInfo{
-    .img        = ptr,
+  rm->writeImage(ImageWriteInfo{
+    .img        = m_img,
     .data       = data,
     .layout     = static_cast<vk::ImageLayout>(layout),
     .face       = face,
@@ -337,98 +258,73 @@ void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layou
   });
 }
 
-DepthImage::DepthImage(std::weak_ptr<Image> img) : m_img(img) {}
+DepthImage::DepthImage(std::shared_ptr<Image> img) : m_img(img) {}
 
 std::pair<uint32_t, uint32_t> DepthImage::dims() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access dimensions of invalid DepthImage");
-  return { ptr->m_width, ptr->m_height };
+  return { m_img->m_width, m_img->m_height };
 }
 
 Format DepthImage::format() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access format of invalid DepthImage");
-  return static_cast<Format>(ptr->m_format);
+  return static_cast<Format>(m_img->m_format);
 }
 
 uint32_t DepthImage::heapIndex() const {
-  auto ptr = m_img.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access heap index of invalid DepthImage");
-  return ptr->m_heapIndexSampled;
+  return m_img->m_heapIndexSampled;
 }
 
-bool DepthImage::valid() const {
-  auto ptr = m_img.lock();
-  return ptr != nullptr;
-}
-
-Sampler::Sampler(std::weak_ptr<Sampler::Impl> impl) : m_impl(impl) {}
+Sampler::Sampler(std::shared_ptr<Sampler::Impl> impl) : m_impl(impl) {}
 
 Filter Sampler::magFilter() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access mag filter on invalid sampler");
-  return static_cast<Filter>(ptr->m_magFilter);
+  return static_cast<Filter>(m_impl->m_magFilter);
 }
 
 Filter Sampler::minFilter() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access min filter on invalid sampler");
-  return static_cast<Filter>(ptr->m_minFilter);
+  return static_cast<Filter>(m_impl->m_minFilter);
 }
 
 SampleMode Sampler::uMode() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access u sample mode on invalid sampler");
-  return static_cast<SampleMode>(ptr->m_uMode);
+  return static_cast<SampleMode>(m_impl->m_uMode);
 }
 
 SampleMode Sampler::vMode() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access v sample mode on invalid sampler");
-  return static_cast<SampleMode>(ptr->m_vMode);
+  return static_cast<SampleMode>(m_impl->m_vMode);
 }
 
 SampleMode Sampler::wMode() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access w sample mode on invalid sampler");
-  return static_cast<SampleMode>(ptr->m_wMode);
+  return static_cast<SampleMode>(m_impl->m_wMode);
 }
 
 bool Sampler::anisotropicFiltering() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access anisotropic filtering on invalid sampler");
-  return ptr->m_anisotropicFiltering;
+  return m_impl->m_anisotropicFiltering;
 }
 
 uint32_t Sampler::heapIndex() const {
-  auto ptr = m_impl.lock();
-  if (ptr == nullptr)
-    GRF_PANIC("Tried to access heap index on invalid sampler");
-  return ptr->m_index;
+  return m_impl->m_index;
 }
 
-bool Sampler::valid() const {
-  auto ptr = m_impl.lock();
-  return ptr != nullptr;
-}
-
-Sampler::Impl::Impl(uint64_t id, vk::Sampler sampler, const SamplerSettings& settings)
-: m_id(id), m_sampler(sampler) {
+Sampler::Impl::Impl(
+  std::weak_ptr<ResourceManager> resourceManager,
+  uint64_t id, vk::Sampler sampler, const SamplerSettings& settings
+)
+: m_resourceManager(resourceManager), m_id(id), m_sampler(sampler) {
   m_magFilter = static_cast<vk::Filter>(settings.magFilter);
   m_minFilter = static_cast<vk::Filter>(settings.minFilter);
   m_uMode = static_cast<vk::SamplerAddressMode>(settings.uMode);
   m_vMode = static_cast<vk::SamplerAddressMode>(settings.vMode);
   m_wMode = static_cast<vk::SamplerAddressMode>(settings.wMode);
   m_anisotropicFiltering = settings.anisotropicFiltering;
+}
+
+Sampler::Impl::~Impl() {
+  auto rm = m_resourceManager.lock();
+  if (rm == nullptr) return;
+
+  rm->scheduleDestruction(Grave{
+    .kind       = ResourceKind::Sampler,
+    .retireAt   = m_lastUseFrame + rm->flightFrames(),
+    .sampler    = m_sampler,
+    .samplerId  = m_id
+  });
 }
 
 }

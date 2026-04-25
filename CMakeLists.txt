@@ -133,6 +133,7 @@ if(GRF_MAKE_TESTS)
   set(TEST_SOURCES
     ${TEST_SOURCE_DIR}/allocation.cpp
     ${TEST_SOURCE_DIR}/assembler.cpp
+    ${TEST_SOURCE_DIR}/destruction.cpp
     ${TEST_SOURCE_DIR}/frame.cpp
     ${TEST_SOURCE_DIR}/lexer.cpp
     ${TEST_SOURCE_DIR}/parser.cpp

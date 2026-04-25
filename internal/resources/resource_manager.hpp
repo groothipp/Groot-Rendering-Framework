@@ -1,9 +1,11 @@
 #pragma once
 
 #include "internal/allocator.hpp"
+#include "internal/graveyard.hpp"
 
 #include <cstdint>
 #include <future>
+#include <mutex>
 #include <vector>
 
 namespace grf {
@@ -55,8 +57,13 @@ class ResourceManager {
   vk::Fence                     m_imageUpdateFence = nullptr;
   std::future<void>             m_imageUpdateFuture;
 
+  std::mutex                    m_graveyardMutex;
+  std::vector<Grave>            m_graveyard;
+  uint64_t                      m_currentFrame = 0;
+  uint32_t                      m_flightFrames = 2;
+
 public:
-  ResourceManager(std::unique_ptr<Allocator>&, Queue&, vk::Device&);
+  ResourceManager(std::unique_ptr<Allocator>&, Queue&, vk::Device&, uint32_t flightFrames);
   ~ResourceManager();
 
   void destroy();
@@ -68,6 +75,14 @@ public:
 
   void beginUpdates();
   void waitForUpdates();
+
+  void scheduleDestruction(const Grave&);
+  void drain();
+  void drainAll();
+
+  uint64_t currentFrame() const;
+  uint32_t flightFrames() const;
+  void advanceFrame();
 
 private:
   void updateBuffers(std::vector<BufferUpdateInfo>);

@@ -156,7 +156,6 @@ TEST_CASE("resources: createDepthImage produces valid depth image", "[resources]
 
   SECTION("attachment-only") {
     grf::DepthImage depth = grf.createDepthImage(grf::Format::d32_sfloat, 256, 256);
-    CHECK(depth.valid());
     CHECK(depth.dims() == std::pair<uint32_t, uint32_t>{ 256, 256 });
     CHECK(depth.format() == grf::Format::d32_sfloat);
     CHECK(depth.heapIndex() == 0xFFFFFFFF);
@@ -164,7 +163,6 @@ TEST_CASE("resources: createDepthImage produces valid depth image", "[resources]
 
   SECTION("sampled depth gets a heap slot") {
     grf::DepthImage depth = grf.createDepthImage(grf::Format::d32_sfloat, 256, 256, true);
-    CHECK(depth.valid());
     CHECK(depth.heapIndex() != 0xFFFFFFFF);
   }
 }

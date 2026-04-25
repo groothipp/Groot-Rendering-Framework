@@ -1,17 +1,23 @@
 #pragma once
 
+#include <memory>
 #include <vulkan/vulkan.hpp>
 
 namespace grf {
 
+class ResourceManager;
+
 class Pipeline {
 public:
-  uint64_t            m_id = 0xFFFFFFFFFFFFFFFF;
+  std::weak_ptr<ResourceManager> m_resourceManager;
+
   vk::PipelineLayout  m_layout = nullptr;
   vk::Pipeline        m_pipeline = nullptr;
+  uint64_t            m_lastUseFrame = 0;
 
 public:
-  Pipeline(uint64_t, vk::PipelineLayout, vk::Pipeline);
+  Pipeline(std::weak_ptr<ResourceManager>, vk::PipelineLayout, vk::Pipeline);
+  ~Pipeline();
 };
 
 }

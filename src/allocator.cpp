@@ -12,7 +12,7 @@ Allocator::Allocator(
   const vk::PhysicalDevice& gpu,
   vk::Device& device,
   uint32_t apiVersion,
-  std::unique_ptr<ResourceManager>& resourceManager
+  std::shared_ptr<ResourceManager>& resourceManager
 ) : m_device(device), m_resourceManager(resourceManager) {
   VmaAllocatorCreateInfo createInfo{
     .flags            = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
@@ -38,16 +38,22 @@ Allocator::~Allocator() {
 }
 
 void Allocator::destroy() {
-  for (auto& [address, buffer] : m_buffers)
-    vmaDestroyBuffer(m_allocator, buffer->m_buffer, buffer->m_allocation);
-
-  for (auto& [id, image] : m_images) {
-    m_device.destroyImageView(image->m_view);
-    vmaDestroyImage(m_allocator, image->m_image, image->m_allocation);
+  for (auto& [address, weakBuf] : m_buffers) {
+    if (auto buffer = weakBuf.lock())
+      vmaDestroyBuffer(m_allocator, buffer->m_buffer, buffer->m_allocation);
   }
 
-  for (auto& [id, sampler] : m_samplers)
-    m_device.destroySampler(sampler->m_sampler);
+  for (auto& [id, weakImg] : m_images) {
+    if (auto image = weakImg.lock()) {
+      m_device.destroyImageView(image->m_view);
+      vmaDestroyImage(m_allocator, image->m_image, image->m_allocation);
+    }
+  }
+
+  for (auto& [id, weakSampler] : m_samplers) {
+    if (auto sampler = weakSampler.lock())
+      m_device.destroySampler(sampler->m_sampler);
+  }
 
   for (auto& [id, allocInfo] : m_staging) {
     auto [allocation, buffer] = allocInfo;
@@ -60,6 +66,25 @@ void Allocator::destroy() {
   m_images.clear();
   m_samplers.clear();
   m_allocator = nullptr;
+}
+
+void Allocator::destroyBuffer(const Grave& grave) {
+  std::lock_guard<std::mutex> g(m_mutex);
+  vmaDestroyBuffer(m_allocator, grave.buffer, grave.allocation);
+  m_buffers.erase(grave.address);
+}
+
+void Allocator::destroyImage(const Grave& grave) {
+  std::lock_guard<std::mutex> g(m_mutex);
+  m_device.destroyImageView(grave.view);
+  vmaDestroyImage(m_allocator, grave.image, grave.allocation);
+  m_images.erase(grave.imageId);
+}
+
+void Allocator::destroySampler(const Grave& grave) {
+  std::lock_guard<std::mutex> g(m_mutex);
+  m_device.destroySampler(grave.sampler);
+  m_samplers.erase(grave.samplerId);
 }
 
 Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
@@ -97,7 +122,7 @@ Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
   vk::DeviceAddress address = m_device.getBufferAddress({ .buffer = buffer });
 
   auto impl = std::make_shared<Buffer::Impl>(
-    m_resourceManager,
+    std::weak_ptr<ResourceManager>(m_resourceManager),
     allocation,
     buffer,
     address,
@@ -153,16 +178,19 @@ std::shared_ptr<Image> Allocator::allocateImage(const ImageAllocInfo& info) {
   vk::Image image(cImage);
   auto req = m_device.getImageMemoryRequirements(image);
 
-  auto impl = std::make_shared<Image>(m_resourceManager, ImageInfo{
-    .id     = m_nextImageID,
-    .alloc  = allocation,
-    .image  = image,
-    .format = info.format,
-    .size   = req.size,
-    .width  = info.width,
-    .height = info.height,
-    .depth  = info.depth
-  });
+  auto impl = std::make_shared<Image>(
+    std::weak_ptr<ResourceManager>(m_resourceManager),
+    ImageInfo{
+      .id     = m_nextImageID,
+      .alloc  = allocation,
+      .image  = image,
+      .format = info.format,
+      .size   = req.size,
+      .width  = info.width,
+      .height = info.height,
+      .depth  = info.depth
+    }
+  );
 
   m_images[m_nextImageID++] = impl;
   return impl;
@@ -185,7 +213,10 @@ std::shared_ptr<Sampler::Impl> Allocator::createSampler(const SamplerSettings& s
     .maxAnisotropy    = m_maxAnisotropy
   });
 
-  auto impl = std::make_shared<Sampler::Impl>(m_nextSamplerID, sampler, s);
+  auto impl = std::make_shared<Sampler::Impl>(
+    std::weak_ptr<ResourceManager>(m_resourceManager),
+    m_nextSamplerID, sampler, s
+  );
 
   m_samplers[m_nextSamplerID++] = impl;
   return impl;
@@ -196,10 +227,13 @@ std::optional<vk::Buffer> Allocator::writeBuffer(
 ) {
   std::lock_guard<std::mutex> g(m_mutex);
 
-  if (!m_buffers.contains(address))
+  auto it = m_buffers.find(address);
+  if (it == m_buffers.end())
     GRF_PANIC("Failed to write buffer. {:#X} not found in allocation map", address);
 
-  std::shared_ptr<Buffer::Impl> impl = m_buffers.at(address);
+  auto impl = it->second.lock();
+  if (impl == nullptr)
+    GRF_PANIC("Failed to write buffer. {:#X} has been destroyed", address);
 
   VkMemoryPropertyFlags cFlags;
   vmaGetAllocationMemoryProperties(m_allocator, impl->m_allocation, &cFlags);
@@ -221,10 +255,13 @@ std::optional<vk::Buffer> Allocator::writeBuffer(
 void Allocator::readBuffer(vk::DeviceAddress address, std::span<std::byte> data, std::size_t offset) {
   std::lock_guard<std::mutex> g(m_mutex);
 
-  if (!m_buffers.contains(address))
+  auto it = m_buffers.find(address);
+  if (it == m_buffers.end())
     GRF_PANIC("Failed to read buffer. {:#X} not found in allocation map", address);
 
-  auto impl = m_buffers.at(address);
+  auto impl = it->second.lock();
+  if (impl == nullptr)
+    GRF_PANIC("Failed to read buffer. {:#X} has been destroyed", address);
 
   vmaCopyAllocationToMemory(m_allocator, impl->m_allocation, offset, data.data(), data.size());
 }

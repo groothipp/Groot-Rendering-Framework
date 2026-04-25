@@ -58,6 +58,8 @@ void GRF::waitForResourceUpdates() {
 void GRF::endFrame() {
   m_impl->m_frameIndex = (m_impl->m_frameIndex + 1) % m_impl->m_settings.flightFrames;
   m_impl->m_endTime = GRF::Impl::Clock::now();
+  m_impl->m_resourceManager->advanceFrame();
+  m_impl->m_resourceManager->drain();
 }
 
 Shader GRF::compileShader(ShaderType type, const std::string& path) {
@@ -282,8 +284,10 @@ DepthImage GRF::createDepthImage(Format format, uint32_t width, uint32_t height,
 Ring<Buffer> GRF::createBufferRing(BufferIntent intent, std::size_t size) {
   auto ring = Ring<Buffer>(m_impl->m_settings.flightFrames);
 
-  for (int i = 0; i < m_impl->m_settings.flightFrames; ++i)
-    ring.m_objs.emplace_back(createBuffer(intent, size));
+  for (int i = 0; i < m_impl->m_settings.flightFrames; ++i) {
+    auto buf = createBuffer(intent, size);
+    ring.m_objs.push_back(buf);
+  }
 
   return ring;
 }
@@ -291,8 +295,10 @@ Ring<Buffer> GRF::createBufferRing(BufferIntent intent, std::size_t size) {
 Ring<Img2D> GRF::createImg2DRing(Format format, uint32_t width, uint32_t height) {
   auto ring = Ring<Img2D>(m_impl->m_settings.flightFrames);
 
-  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
-    ring.m_objs.emplace_back(createImg2D(format, width, height));
+  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i) {
+    auto img = createImg2D(format, width, height);
+    ring.m_objs.push_back(img);
+  }
 
   return ring;
 }
@@ -300,8 +306,10 @@ Ring<Img2D> GRF::createImg2DRing(Format format, uint32_t width, uint32_t height)
 Ring<Img3D> GRF::createImg3DRing(Format format, uint32_t width, uint32_t height, uint32_t depth) {
   auto ring = Ring<Img3D>(m_impl->m_settings.flightFrames);
 
-  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
-    ring.m_objs.emplace_back(createImg3D(format, width, height, depth));
+  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i) {
+    auto img = createImg3D(format, width, height, depth);
+    ring.m_objs.push_back(img);
+  }
 
   return ring;
 }
@@ -430,9 +438,9 @@ GraphicsPipeline GRF::createGraphicsPipeline(
     GRF_PANIC("Failed to create graphics pipeline: {}", vk::to_string(res.result));
 
   auto pipeline = std::make_shared<Pipeline>(
-    m_impl->m_nextPipelineIndex, m_impl->m_pipelineLayout, res.value
+    std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
+    m_impl->m_pipelineLayout, res.value
   );
-  m_impl->m_pipelines[m_impl->m_nextPipelineIndex++] = pipeline;
 
   return GraphicsPipeline(pipeline);
 }
@@ -451,9 +459,9 @@ ComputePipeline GRF::createComputePipeline(Shader shader) {
     GRF_PANIC("Failed to create compute pipeline");
 
   auto pipeline = std::make_shared<Pipeline>(
-    m_impl->m_nextPipelineIndex, m_impl->m_pipelineLayout, res.value
+    std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
+    m_impl->m_pipelineLayout, res.value
   );
-  m_impl->m_pipelines[m_impl->m_nextPipelineIndex++] = pipeline;
 
   return ComputePipeline(pipeline);
 }
@@ -536,7 +544,9 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   );
   m_descriptorHeap = std::make_unique<DescriptorHeap>(m_gpu, m_device);
   m_shaderManager = std::make_unique<ShaderManager>(m_device);
-  m_resourceManager = std::make_unique<ResourceManager>(m_allocator, m_transferQueue, m_device);
+  m_resourceManager = std::make_shared<ResourceManager>(
+    m_allocator, m_transferQueue, m_device, m_settings.flightFrames
+  );
 
   createSwapchain();
   createPipelineLayout();
@@ -559,11 +569,11 @@ GRF::Impl::~Impl() {
   for (auto& [id, semaphore] : m_semaphores)
     m_device.destroySemaphore(semaphore->m_semaphore);
 
-  for (auto& [id, pipeline] : m_pipelines)
-    m_device.destroyPipeline(pipeline->m_pipeline);
   m_device.destroyPipelineLayout(m_pipelineLayout);
 
   m_resourceManager->destroy();
+  m_resourceManager.reset();
+
   m_shaderManager->destroy();
   m_descriptorHeap->destroy();
   m_allocator->destroy();

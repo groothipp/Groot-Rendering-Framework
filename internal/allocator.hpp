@@ -1,5 +1,6 @@
 #pragma once
 
+#include "internal/graveyard.hpp"
 #include "internal/resources/buffer.hpp"
 #include "internal/resources/image.hpp"
 #include "internal/resources/sampler.hpp"
@@ -30,12 +31,12 @@ struct ImageAllocInfo{
 };
 
 class Allocator {
-  using BufferMap = std::unordered_map<uint64_t, std::shared_ptr<Buffer::Impl>>;
-  using ImageMap = std::unordered_map<uint64_t, std::shared_ptr<Image>>;
-  using SamplerMap = std::unordered_map<uint64_t, std::shared_ptr<Sampler::Impl>>;
+  using BufferMap = std::unordered_map<uint64_t, std::weak_ptr<Buffer::Impl>>;
+  using ImageMap = std::unordered_map<uint64_t, std::weak_ptr<Image>>;
+  using SamplerMap = std::unordered_map<uint64_t, std::weak_ptr<Sampler::Impl>>;
   using StagingMap = std::unordered_map<uint64_t, std::pair<VmaAllocation, vk::Buffer>>;
 
-  std::unique_ptr<ResourceManager>& m_resourceManager;
+  std::shared_ptr<ResourceManager>& m_resourceManager;
   std::mutex                        m_mutex;
 
   bool                              m_anisotropySupport = false;
@@ -55,7 +56,7 @@ class Allocator {
 public:
   Allocator(
     const vk::Instance&, const vk::PhysicalDevice&, vk::Device&,
-    uint32_t, std::unique_ptr<ResourceManager>&
+    uint32_t, std::shared_ptr<ResourceManager>&
   );
   ~Allocator();
 
@@ -67,6 +68,10 @@ public:
   std::optional<vk::Buffer> writeBuffer(vk::DeviceAddress, std::span<const std::byte>, std::size_t);
   void readBuffer(vk::DeviceAddress, std::span<std::byte>, std::size_t);
   vk::Buffer stage(std::span<const std::byte>);
+
+  void destroyBuffer(const Grave&);
+  void destroyImage(const Grave&);
+  void destroySampler(const Grave&);
 
   void destroyStagingBuffers();
 

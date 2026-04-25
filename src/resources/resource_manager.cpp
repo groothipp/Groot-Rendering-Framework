@@ -1,11 +1,16 @@
 #include "internal/resources/resource_manager.hpp"
 #include "internal/log.hpp"
 
+#include <algorithm>
+#include <iterator>
+
 namespace grf {
 
 ResourceManager::ResourceManager(
-  std::unique_ptr<Allocator>& allocator, Queue& transferQueue, vk::Device& device)
-: m_allocator(allocator), m_transferQueue(transferQueue), m_device(device) {
+  std::unique_ptr<Allocator>& allocator, Queue& transferQueue, vk::Device& device,
+  uint32_t flightFrames
+) : m_allocator(allocator), m_transferQueue(transferQueue), m_device(device),
+    m_flightFrames(flightFrames) {
   m_bufferUpdateFence = m_device.createFence(vk::FenceCreateInfo{
     .flags = vk::FenceCreateFlagBits::eSignaled
   });
@@ -28,6 +33,8 @@ ResourceManager::~ResourceManager() {
 void ResourceManager::destroy() {
   if (m_bufferCmd != nullptr || m_imageCmd != nullptr)
     waitForUpdates();
+
+  drainAll();
 
   m_device.destroyFence(m_bufferUpdateFence);
   m_device.destroyFence(m_imageUpdateFence);
@@ -126,6 +133,8 @@ void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos) {
   m_bufferCmd.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
   for (const auto& info : infos) {
+    info.buf->m_lastUseFrame = m_currentFrame;
+
     auto res = m_allocator->writeBuffer(info.buf->m_address, info.data, info.offset);
     if (!res.has_value()) continue;
 
@@ -158,6 +167,8 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos) {
   m_imageCmd.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
   for (auto& info: infos) {
+    info.img->m_lastUseFrame = m_currentFrame;
+
     vk::PipelineStageFlags srcStage;
     vk::AccessFlags        srcAccess;
     switch (info.img->m_layout) {
@@ -236,6 +247,61 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos) {
     .commandBufferCount = 1,
     .pCommandBuffers    = &m_imageCmd
   }, m_imageUpdateFence);
+}
+
+void ResourceManager::scheduleDestruction(const Grave& grave) {
+  std::lock_guard<std::mutex> g(m_graveyardMutex);
+  m_graveyard.emplace_back(grave);
+}
+
+void ResourceManager::drain() {
+  std::vector<Grave> ready;
+  {
+    std::lock_guard<std::mutex> g(m_graveyardMutex);
+    auto it = std::partition(m_graveyard.begin(), m_graveyard.end(),
+      [this](const Grave& gr) { return gr.retireAt > m_currentFrame; });
+    ready.assign(std::make_move_iterator(it), std::make_move_iterator(m_graveyard.end()));
+    m_graveyard.erase(it, m_graveyard.end());
+  }
+
+  for (const auto& grave : ready) {
+    switch (grave.kind) {
+      case ResourceKind::Buffer:   m_allocator->destroyBuffer(grave); break;
+      case ResourceKind::Image:    m_allocator->destroyImage(grave); break;
+      case ResourceKind::Sampler:  m_allocator->destroySampler(grave); break;
+      case ResourceKind::Pipeline: m_device.destroyPipeline(grave.pipeline); break;
+    }
+  }
+}
+
+void ResourceManager::drainAll() {
+  std::vector<Grave> ready;
+  {
+    std::lock_guard<std::mutex> g(m_graveyardMutex);
+    ready = std::move(m_graveyard);
+    m_graveyard.clear();
+  }
+
+  for (const auto& grave : ready) {
+    switch (grave.kind) {
+      case ResourceKind::Buffer:   m_allocator->destroyBuffer(grave); break;
+      case ResourceKind::Image:    m_allocator->destroyImage(grave); break;
+      case ResourceKind::Sampler:  m_allocator->destroySampler(grave); break;
+      case ResourceKind::Pipeline: m_device.destroyPipeline(grave.pipeline); break;
+    }
+  }
+}
+
+uint64_t ResourceManager::currentFrame() const {
+  return m_currentFrame;
+}
+
+uint32_t ResourceManager::flightFrames() const {
+  return m_flightFrames;
+}
+
+void ResourceManager::advanceFrame() {
+  ++m_currentFrame;
 }
 
 }

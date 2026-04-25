@@ -3,6 +3,7 @@
 #include "public/types.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
@@ -19,12 +20,11 @@ struct ImageInfo{
   uint32_t        width;
   uint32_t        height;
   uint32_t        depth;
-
 };
 
 class Image {
 public:
-  std::unique_ptr<ResourceManager>& m_resourceManager;
+  std::weak_ptr<ResourceManager> m_resourceManager;
 
   uint64_t        m_id = 0xFFFFFFFFFFFFFFFF;
   VmaAllocation   m_allocation = nullptr;
@@ -39,9 +39,11 @@ public:
   uint32_t        m_width = 0;
   uint32_t        m_height = 0;
   uint32_t        m_depth = 0;
+  uint64_t        m_lastUseFrame = 0;
 
 public:
-  Image(std::unique_ptr<ResourceManager>&, const ImageInfo&);
+  Image(std::weak_ptr<ResourceManager>, const ImageInfo&);
+  ~Image();
 };
 
 }

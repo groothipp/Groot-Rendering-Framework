@@ -16,7 +16,6 @@ TEST_CASE("ring: createBufferRing produces flightFrames distinct buffers", "[rin
   std::set<uint64_t> addresses;
   for (uint32_t i = 0; i < 2; ++i) {
     grf::Buffer& buf = ring[i];
-    REQUIRE(buf.valid());
     CHECK(buf.size() == bufferSize);
     CHECK(buf.intent() == grf::BufferIntent::FrequentUpdate);
     CHECK(buf.address() != 0x0);
@@ -35,7 +34,6 @@ TEST_CASE("ring: buffer ring honors custom flightFrames", "[ring][buffer]") {
   std::set<uint64_t> addresses;
   for (uint32_t i = 0; i < 4; ++i) {
     grf::Buffer& buf = ring[i];
-    REQUIRE(buf.valid());
     CHECK(buf.size() == bufferSize);
     CHECK(buf.intent() == grf::BufferIntent::GPUOnly);
     addresses.insert(buf.address());
@@ -74,7 +72,6 @@ TEST_CASE("ring: createImg2DRing produces flightFrames distinct images", "[ring]
   std::set<uint32_t> heapIndices;
   for (uint32_t i = 0; i < 2; ++i) {
     grf::Img2D& img = ring[i];
-    REQUIRE(img.valid());
 
     auto [w, h] = img.dims();
     CHECK(w == width);
@@ -99,7 +96,6 @@ TEST_CASE("ring: createImg3DRing produces flightFrames distinct images", "[ring]
   std::set<uint32_t> heapIndices;
   for (uint32_t i = 0; i < 2; ++i) {
     grf::Img3D& img = ring[i];
-    REQUIRE(img.valid());
 
     auto [w, h, d] = img.dims();
     CHECK(w == width);
