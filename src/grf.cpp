@@ -255,10 +255,39 @@ Sampler GRF::createSampler(const SamplerSettings& settings) {
   return Sampler(impl);
 }
 
+Ring<Buffer> GRF::createBufferRing(BufferIntent intent, std::size_t size) {
+  auto ring = Ring<Buffer>(m_impl->m_settings.flightFrames);
+
+  for (int i = 0; i < m_impl->m_settings.flightFrames; ++i)
+    ring.m_objs.emplace_back(createBuffer(intent, size));
+
+  return ring;
+}
+
+Ring<Img2D> GRF::createImg2DRing(Format format, uint32_t width, uint32_t height) {
+  auto ring = Ring<Img2D>(m_impl->m_settings.flightFrames);
+
+  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
+    ring.m_objs.emplace_back(createImg2D(format, width, height));
+
+  return ring;
+}
+
+Ring<Img3D> GRF::createImg3DRing(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+  auto ring = Ring<Img3D>(m_impl->m_settings.flightFrames);
+
+  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
+    ring.m_objs.emplace_back(createImg3D(format, width, height, depth));
+
+  return ring;
+}
+
 Fence GRF::createFence(bool signaled) {
   auto impl = std::make_shared<Fence::Impl>(
     m_impl->m_nextSyncIndex,
-    m_impl->m_device.createFence(vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled })
+    m_impl->m_device.createFence(vk::FenceCreateInfo{
+      .flags = signaled ? vk::FenceCreateFlagBits::eSignaled : vk::FenceCreateFlags()
+    })
   );
 
   m_impl->m_fences[m_impl->m_nextSyncIndex++] = impl;
@@ -275,6 +304,24 @@ Semaphore GRF::createSemaphore() {
   m_impl->m_semaphores[m_impl->m_nextSyncIndex++] = impl;
 
   return Semaphore(impl);
+}
+
+Ring<Fence> GRF::createFenceRing(bool signaled) {
+  auto ring = Ring<Fence>(m_impl->m_settings.flightFrames);
+
+  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
+    ring.m_objs.emplace_back(createFence(signaled));
+
+  return ring;
+}
+
+Ring<Semaphore> GRF::createSemaphoreRing() {
+  auto ring = Ring<Semaphore>(m_impl->m_settings.flightFrames);
+
+  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
+    ring.m_objs.emplace_back(createSemaphore());
+
+  return ring;
 }
 
 void GRF::waitFences(const std::vector<Fence>& fences) {

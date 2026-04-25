@@ -32,6 +32,7 @@ set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/enums.hpp
   ${GRF_PUBLIC_INCL_DIR}/grf.hpp
   ${GRF_PUBLIC_INCL_DIR}/img.hpp
+  ${GRF_PUBLIC_INCL_DIR}/ring.hpp
   ${GRF_PUBLIC_INCL_DIR}/sampler.hpp
   ${GRF_PUBLIC_INCL_DIR}/shader.hpp
   ${GRF_PUBLIC_INCL_DIR}/structs.hpp
@@ -141,6 +142,7 @@ if(GRF_MAKE_TESTS)
     ${TEST_SOURCE_DIR}/lexer.cpp
     ${TEST_SOURCE_DIR}/parser.cpp
     ${TEST_SOURCE_DIR}/resource_update.cpp
+    ${TEST_SOURCE_DIR}/ring.cpp
     ${TEST_SOURCE_DIR}/shaders.cpp
   )
 
