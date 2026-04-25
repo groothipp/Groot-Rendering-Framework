@@ -21,6 +21,7 @@ enum class Token : int8_t {
   Readonly,
   Writeonly,
   Push,
+  ThreadGroup,
   In,
   Out,
   Flat,

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public/swapchain_image.hpp"
+#include "public/resources.hpp"
 
 #include <vulkan/vulkan.hpp>
 

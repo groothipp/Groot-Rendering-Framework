@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public/enums.hpp"
 #include "public/shader.hpp"
+#include "public/types.hpp"
 
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan.hpp>
@@ -41,7 +41,7 @@ public:
 
 private:
   std::string stringify(std::ifstream&) const;
-  std::string getShaderSource(const std::string&, const std::string&) const;
+  std::string getShaderSource(ShaderType, const std::string&, const std::string&) const;
   shaderc_shader_kind shadercType(ShaderType) const;
   std::string generateCacheName();
 

@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace grf {
 
 enum class ShaderType {
@@ -118,6 +123,30 @@ enum class PresentMode {
   VSync,
   Mailbox,
   Immediate
+};
+
+struct Settings {
+  std::string                   windowTitle = "GRF Application";
+  std::pair<uint32_t, uint32_t> windowSize = { 1280u, 720u };
+  std::string                   applicationVersion = "1.0.0";
+  uint32_t                      flightFrames = 2;
+  Format                        swapchainFormat = Format::bgra8_srgb;
+  PresentMode                   presentMode = PresentMode::VSync;
+};
+
+struct SamplerSettings {
+  Filter magFilter = Filter::Linear;
+  Filter minFilter = Filter::Linear;
+  SampleMode uMode = SampleMode::Repeat;
+  SampleMode vMode = SampleMode::Repeat;
+  SampleMode wMode = SampleMode::Repeat;
+  bool anisotropicFiltering = true;
+};
+
+struct ImageData {
+  std::vector<std::byte> bytes;
+  uint32_t               width;
+  uint32_t               height;
 };
 
 }

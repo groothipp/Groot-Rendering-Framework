@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public/buffer.hpp"
-#include "public/enums.hpp"
+#include "public/resources.hpp"
 
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>

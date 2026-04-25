@@ -99,14 +99,14 @@ std::string ShaderManager::stringify(std::ifstream& file) const {
   return source;
 }
 
-std::string ShaderManager::getShaderSource(const std::string& source, const std::string& path) const {
+std::string ShaderManager::getShaderSource(ShaderType type, const std::string& source, const std::string& path) const {
   gsl::Lexer lexer(source);
   auto tokens = lexer.tokenize();
 
   gsl::Parser parser(tokens, source, path);
   auto parsed = parser.parse();
 
-  gsl::Assembler assembler(parsed);
+  gsl::Assembler assembler(parsed, type);
   return assembler.assemble();
 }
 
@@ -176,7 +176,7 @@ std::vector<uint32_t> ShaderManager::codeFromPath(ShaderType type, const std::st
   std::ifstream file(path);
 
   std::string source = stringify(file);
-  std::string shaderSource = getShaderSource(source, path);
+  std::string shaderSource = getShaderSource(type, source, path);
 
   auto res = m_compiler.CompileGlslToSpv(shaderSource, shadercType(type), path.c_str());
   if (res.GetNumErrors() > 0)

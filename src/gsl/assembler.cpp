@@ -1,4 +1,5 @@
 #include "internal/gsl/assembler.hpp"
+#include "internal/log.hpp"
 
 #include <format>
 
@@ -23,13 +24,28 @@ layout(set = 0, binding = 5) uniform sampler     grf_Sampler[];
 
 }
 
-Assembler::Assembler(const ParsedSource& parsed) : m_parsed(parsed) {}
+Assembler::Assembler(const ParsedSource& parsed, ShaderType type)
+: m_parsed(parsed), m_type(type) {}
 
 std::string Assembler::assemble() const {
+  if (m_parsed.threadGroup.has_value() && m_type != ShaderType::Compute) {
+    const auto& loc = m_parsed.threadGroup->loc;
+    GRF_PANIC("{}:{}: 'thread_group' is only allowed in compute shaders",
+              loc.row, loc.col);
+  }
+
   std::string out;
   out.reserve(kHeader.size() + m_parsed.body.size() + 1024);
 
   out += kHeader;
+
+  if (m_parsed.threadGroup.has_value()) {
+    const auto& [x, y, z] = m_parsed.threadGroup->dims;
+    out += std::format(
+      "layout(local_size_x = {}, local_size_y = {}, local_size_z = {}) in;\n\n",
+      x, y, z
+    );
+  }
 
   for (const auto& b : m_parsed.buffers) {
     out += std::format("layout(buffer_reference, std430) {} buffer {} {{{}}};\n",

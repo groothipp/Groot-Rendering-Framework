@@ -209,3 +209,28 @@ TEST_CASE("parser: multiple in/out stage vars preserve declaration order", "[gsl
   CHECK(r.ins[1].name  == "normal");
   CHECK(r.outs[0].name == "color");
 }
+
+TEST_CASE("parser: thread_group extracted", "[gsl][parser]") {
+  auto r = parse("thread_group [8, 4, 2];");
+  REQUIRE(r.threadGroup.has_value());
+  CHECK(r.threadGroup->dims[0] == 8u);
+  CHECK(r.threadGroup->dims[1] == 4u);
+  CHECK(r.threadGroup->dims[2] == 2u);
+  CHECK(r.threadGroup->loc.row == 1u);
+  CHECK(r.threadGroup->loc.col == 1u);
+}
+
+TEST_CASE("parser: thread_group not present when omitted", "[gsl][parser]") {
+  auto r = parse("void main() {}");
+  CHECK_FALSE(r.threadGroup.has_value());
+}
+
+TEST_CASE("parser: thread_group followed by body emits #line", "[gsl][parser]") {
+  auto r = parse(
+    "thread_group [16, 16, 1];\n"
+    "void main() {}"
+  );
+  REQUIRE(r.threadGroup.has_value());
+  CHECK(contains(r.body, "#line 1 \"test.gsl\""));
+  CHECK(contains(r.body, "void main()"));
+}

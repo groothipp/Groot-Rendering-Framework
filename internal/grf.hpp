@@ -21,6 +21,7 @@ public:
   using FenceMap = std::unordered_map<uint64_t, std::shared_ptr<Fence::Impl>>;
   using SemaphoreMap = std::unordered_map<uint64_t, std::shared_ptr<Semaphore::Impl>>;
   using SwapchainImages = std::vector<std::shared_ptr<SwapchainImage::Impl>>;
+  using PipelineMap = std::unordered_map<uint64_t, std::shared_ptr<Pipeline>>;
   using Clock = std::chrono::high_resolution_clock;
   using TimePoint = Clock::time_point;
   using Duration = std::chrono::duration<double>;
@@ -50,6 +51,10 @@ public:
   SemaphoreMap                      m_semaphores;
   uint64_t                          m_nextSyncIndex = 0;
 
+  vk::PipelineLayout                m_pipelineLayout = nullptr;
+  PipelineMap                       m_pipelines;
+  uint64_t                          m_nextPipelineIndex = 0;
+
   uint64_t                          m_frameIndex = 0;
   TimePoint                         m_startTime;
   TimePoint                         m_endTime;
@@ -66,6 +71,7 @@ private:
   void getQueueFamilyIndices();
   void createDevice(std::vector<const char *>&);
   void createSwapchain();
+  void createPipelineLayout();
 };
 
 }

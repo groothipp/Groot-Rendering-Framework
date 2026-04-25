@@ -2,6 +2,7 @@
 
 #include "./tokens.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -25,6 +26,11 @@ struct PushBlock {
   SourceLoc        loc;
 };
 
+struct ThreadGroup {
+  std::array<uint32_t, 3> dims;
+  SourceLoc               loc;
+};
+
 enum class StageDirection { In, Out };
 
 struct StageVar {
@@ -36,11 +42,12 @@ struct StageVar {
 };
 
 struct ParsedSource {
-  std::vector<BufferDecl>  buffers;
-  std::optional<PushBlock> push;
-  std::vector<StageVar>    ins;
-  std::vector<StageVar>    outs;
-  std::string              body;
+  std::vector<BufferDecl>    buffers;
+  std::optional<PushBlock>   push;
+  std::optional<ThreadGroup> threadGroup;
+  std::vector<StageVar>      ins;
+  std::vector<StageVar>      outs;
+  std::string                body;
 };
 
 class Parser {
@@ -63,9 +70,10 @@ private:
   void              skipTrivia();
   const TokenData&  expect(Token kind, std::string_view what);
 
-  BufferDecl parseBufferDecl();
-  PushBlock  parsePushBlock();
-  StageVar   parseStageVar(std::string_view interpolation, SourceLoc declLoc);
+  BufferDecl  parseBufferDecl();
+  PushBlock   parsePushBlock();
+  ThreadGroup parseThreadGroup();
+  StageVar    parseStageVar(std::string_view interpolation, SourceLoc declLoc);
 
   void emitLineDirective(std::string& body, uint32_t row) const;
 };

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public/enums.hpp"
+#include "public/types.hpp"
 
 #include <cstdint>
 #include <vk_mem_alloc.h>

@@ -1,7 +1,9 @@
 #include "internal/gsl/parser.hpp"
 #include "internal/log.hpp"
 
+#include <charconv>
 #include <format>
+#include <system_error>
 
 namespace grf::gsl {
 
@@ -110,6 +112,16 @@ ParsedSource Parser::parse() {
       GRF_PANIC("{}:{}:{}: 'push' is reserved; expected '{{' after",
                 m_sourceName, tok.loc.row, tok.loc.col);
     }
+    else if (tok.token == Token::ThreadGroup) {
+      if (result.threadGroup.has_value()) {
+        GRF_PANIC("{}:{}:{}: duplicate 'thread_group' declaration",
+                  m_sourceName, tok.loc.row, tok.loc.col);
+      }
+      result.threadGroup = parseThreadGroup();
+
+      if (!atEnd()) emitLineDirective(result.body, peek().loc.row);
+      continue;
+    }
     else if (m_parenDepth == 0 && (tok.token == Token::In || tok.token == Token::Out)) {
       StageVar sv = parseStageVar({}, tok.loc);
       if (sv.direction == StageDirection::In)  result.ins.push_back(sv);
@@ -205,6 +217,43 @@ BufferDecl Parser::parseBufferDecl() {
     .instanceName = instanceName,
     .loc          = declLoc,
   };
+}
+
+ThreadGroup Parser::parseThreadGroup() {
+  const TokenData& kwTok = advance();
+  SourceLoc        loc   = kwTok.loc;
+
+  skipTrivia();
+  expect(Token::LBrack, "'[' after 'thread_group'");
+
+  std::array<uint32_t, 3> dims{};
+  for (std::size_t i = 0; i < 3; ++i) {
+    skipTrivia();
+    const TokenData& numTok = expect(Token::Number, "thread_group dimension");
+
+    auto [_, ec] = std::from_chars(
+      numTok.source.data(),
+      numTok.source.data() + numTok.source.size(),
+      dims[i]
+    );
+    if (ec != std::errc{}) {
+      GRF_PANIC("{}:{}:{}: invalid thread_group dimension '{}'",
+                m_sourceName, numTok.loc.row, numTok.loc.col, numTok.source);
+    }
+
+    if (i < 2) {
+      skipTrivia();
+      expect(Token::Comma, "',' between thread_group dimensions");
+    }
+  }
+
+  skipTrivia();
+  expect(Token::RBrack, "']' to close thread_group");
+
+  skipTrivia();
+  expect(Token::Semicolon, "';' after thread_group");
+
+  return ThreadGroup{ .dims = dims, .loc = loc };
 }
 
 PushBlock Parser::parsePushBlock() {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public/sampler.hpp"
-#include "public/structs.hpp"
+#include "public/resources.hpp"
+#include "public/types.hpp"
 
 #include <vulkan/vulkan.hpp>
 

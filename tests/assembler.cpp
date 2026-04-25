@@ -2,21 +2,26 @@
 #include "internal/gsl/lexer.hpp"
 #include "internal/gsl/parser.hpp"
 
+#include "public/types.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
 #include <string_view>
 
+using grf::ShaderType;
 using grf::gsl::Assembler;
 using grf::gsl::Lexer;
 using grf::gsl::Parser;
 
 namespace {
 
-std::string assembleFrom(std::string_view source, std::string_view name = "test.gsl") {
+std::string assembleFrom(std::string_view source,
+                         ShaderType type = ShaderType::Vertex,
+                         std::string_view name = "test.gsl") {
   auto tokens = Lexer{source}.tokenize();
   auto parsed = Parser{tokens, source, name}.parse();
-  return Assembler{parsed}.assemble();
+  return Assembler{parsed, type}.assemble();
 }
 
 bool contains(std::string_view haystack, std::string_view needle) {
@@ -146,6 +151,7 @@ TEST_CASE("assembler: parser's #line directives preserved in body", "[gsl][assem
     "  int x;\n"
     "} v;\n"
     "void main() {}",
+    ShaderType::Vertex,
     "shaders/mesh.gsl"
   );
   CHECK(contains(out, "#line 1 \"shaders/mesh.gsl\""));
@@ -182,6 +188,16 @@ TEST_CASE("assembler: multiple ins get increasing locations", "[gsl][assembler]"
 TEST_CASE("assembler: interpolation qualifier emitted with layout", "[gsl][assembler]") {
   auto out = assembleFrom("flat in int materialId;\nvoid main() {}");
   CHECK(contains(out, "layout(location = 0) flat in int materialId;"));
+}
+
+TEST_CASE("assembler: thread_group emits local_size layout for compute", "[gsl][assembler]") {
+  auto out = assembleFrom("thread_group [8, 4, 2];\nvoid main() {}", ShaderType::Compute);
+  CHECK(contains(out, "layout(local_size_x = 8, local_size_y = 4, local_size_z = 2) in;"));
+}
+
+TEST_CASE("assembler: no thread_group means no local_size layout", "[gsl][assembler]") {
+  auto out = assembleFrom("void main() {}", ShaderType::Compute);
+  CHECK_FALSE(contains(out, "local_size_x"));
 }
 
 TEST_CASE("assembler: full integration - buffer + push + body", "[gsl][assembler]") {

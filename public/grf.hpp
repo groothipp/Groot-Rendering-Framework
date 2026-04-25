@@ -1,15 +1,11 @@
 #pragma once
 
-#include "./buffer.hpp"
-#include "./enums.hpp"
-#include "./img.hpp"
-#include "./sampler.hpp"
-#include "./shader.hpp"
-#include "./structs.hpp"
-#include "./swapchain_image.hpp"
-#include "./sync.hpp"
-#include "./tex.hpp"
+#include "./pipelines.hpp"
+#include "./resources.hpp"
 #include "./ring.hpp"
+#include "./shader.hpp"
+#include "./sync.hpp"
+#include "./types.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -45,6 +41,7 @@ public:
   Ring<Buffer> createBufferRing(BufferIntent, std::size_t);
   Ring<Img2D> createImg2DRing(Format, uint32_t, uint32_t);
   Ring<Img3D> createImg3DRing(Format, uint32_t, uint32_t, uint32_t);
+  ComputePipeline createComputePipeline(Shader);
 
   Fence createFence(bool signaled = false);
   Semaphore createSemaphore();

@@ -4,7 +4,7 @@
 #include "internal/resources/image.hpp"
 #include "internal/resources/sampler.hpp"
 
-#include "public/structs.hpp"
+#include "public/types.hpp"
 #include "vulkan/vulkan.hpp"
 
 #include <cstdint>

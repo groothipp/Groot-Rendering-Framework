@@ -1,0 +1,5 @@
+thread_group [16, 16, 1];
+
+void main() {
+  uvec3 _ = gl_GlobalInvocationID;
+}
