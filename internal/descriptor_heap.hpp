@@ -38,6 +38,7 @@ public:
   void addImg2D(std::shared_ptr<Image>);
   void addImg3D(std::shared_ptr<Image>);
   void addSampler(std::shared_ptr<Sampler::Impl>);
+  uint32_t addImg2DStorageOnly(vk::ImageView);
 
 private:
   void createLayout(uint32_t, uint32_t, uint32_t);

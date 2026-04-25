@@ -1,0 +1,15 @@
+readonly buffer Vertices {
+  vec4 pos[];
+} verts;
+
+push {
+  uint count;
+};
+
+out vec3 worldPos;
+
+void main() {
+  vec4 p = verts.pos[gl_VertexIndex];
+  gl_Position = p;
+  worldPos = p.xyz;
+}

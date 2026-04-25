@@ -337,6 +337,34 @@ void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layou
   });
 }
 
+DepthImage::DepthImage(std::weak_ptr<Image> img) : m_img(img) {}
+
+std::pair<uint32_t, uint32_t> DepthImage::dims() const {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to access dimensions of invalid DepthImage");
+  return { ptr->m_width, ptr->m_height };
+}
+
+Format DepthImage::format() const {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to access format of invalid DepthImage");
+  return static_cast<Format>(ptr->m_format);
+}
+
+uint32_t DepthImage::heapIndex() const {
+  auto ptr = m_img.lock();
+  if (ptr == nullptr)
+    GRF_PANIC("Tried to access heap index of invalid DepthImage");
+  return ptr->m_heapIndexSampled;
+}
+
+bool DepthImage::valid() const {
+  auto ptr = m_img.lock();
+  return ptr != nullptr;
+}
+
 Sampler::Sampler(std::weak_ptr<Sampler::Impl> impl) : m_impl(impl) {}
 
 Filter Sampler::magFilter() const {

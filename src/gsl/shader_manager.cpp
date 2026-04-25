@@ -30,7 +30,7 @@ const vk::ShaderModule& ShaderManager::getModule(const Shader& shader) const {
 Shader ShaderManager::compile(ShaderType type, const std::string& path) {
   if (m_shaders.contains(path)) {
     log::warning("\"{}\" is already compiled", path);
-    return Shader();
+    return Shader(type, "");
   }
 
   if (!std::filesystem::exists(path))

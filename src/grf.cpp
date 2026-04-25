@@ -244,6 +244,41 @@ Sampler GRF::createSampler(const SamplerSettings& settings) {
   return Sampler(impl);
 }
 
+DepthImage GRF::createDepthImage(Format format, uint32_t width, uint32_t height, bool sampled) {
+  vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+  if (sampled) usage |= vk::ImageUsageFlagBits::eSampled;
+
+  auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
+    .type   = vk::ImageType::e2D,
+    .format = static_cast<vk::Format>(format),
+    .usage  = usage,
+    .width  = width,
+    .height = height
+  });
+
+  img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::e2D,
+    .format     = img->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eDepth,
+      .levelCount = 1,
+      .layerCount = 1
+    }
+  });
+
+  if (sampled)
+    m_impl->m_descriptorHeap->addTex2D(img);
+
+  return DepthImage(img);
+}
+
 Ring<Buffer> GRF::createBufferRing(BufferIntent intent, std::size_t size) {
   auto ring = Ring<Buffer>(m_impl->m_settings.flightFrames);
 
@@ -269,6 +304,137 @@ Ring<Img3D> GRF::createImg3DRing(Format format, uint32_t width, uint32_t height,
     ring.m_objs.emplace_back(createImg3D(format, width, height, depth));
 
   return ring;
+}
+
+GraphicsPipeline GRF::createGraphicsPipeline(
+  Shader vertex, Shader fragment, const GraphicsPipelineSettings& settings
+) {
+  if (vertex.type() != ShaderType::Vertex)
+    GRF_PANIC("createGraphicsPipeline: first shader must be a vertex shader");
+  if (fragment.type() != ShaderType::Fragment)
+    GRF_PANIC("createGraphicsPipeline: second shader must be a fragment shader");
+  if (settings.colorFormats.empty())
+    GRF_PANIC("createGraphicsPipeline: at least one color format is required");
+  if (!settings.blends.empty() && settings.blends.size() != settings.colorFormats.size())
+    GRF_PANIC("createGraphicsPipeline: blends.size() ({}) must equal colorFormats.size() ({})",
+              settings.blends.size(), settings.colorFormats.size());
+
+  std::array<vk::PipelineShaderStageCreateInfo, 2> stages = {
+    vk::PipelineShaderStageCreateInfo{
+      .stage  = vk::ShaderStageFlagBits::eVertex,
+      .module = m_impl->m_shaderManager->getModule(vertex),
+      .pName  = "main"
+    },
+    vk::PipelineShaderStageCreateInfo{
+      .stage  = vk::ShaderStageFlagBits::eFragment,
+      .module = m_impl->m_shaderManager->getModule(fragment),
+      .pName  = "main"
+    }
+  };
+
+  vk::PipelineVertexInputStateCreateInfo vertexInput{};
+
+  vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
+    .topology = static_cast<vk::PrimitiveTopology>(settings.topology)
+  };
+
+  vk::PipelineViewportStateCreateInfo viewport{
+    .viewportCount  = 1,
+    .scissorCount   = 1
+  };
+
+  vk::PipelineRasterizationStateCreateInfo rasterization{
+    .polygonMode  = static_cast<vk::PolygonMode>(settings.polygonMode),
+    .cullMode     = static_cast<vk::CullModeFlagBits>(settings.cullMode),
+    .frontFace    = static_cast<vk::FrontFace>(settings.frontFace),
+    .lineWidth    = 1.0f
+  };
+
+  vk::PipelineMultisampleStateCreateInfo multisample{
+    .rasterizationSamples = static_cast<vk::SampleCountFlagBits>(settings.sampleCount)
+  };
+
+  const bool hasDepth = settings.depthFormat != Format::undefined;
+  vk::PipelineDepthStencilStateCreateInfo depthStencil{
+    .depthTestEnable  = hasDepth && settings.depthTest,
+    .depthWriteEnable = hasDepth && settings.depthWrite,
+    .depthCompareOp   = static_cast<vk::CompareOp>(settings.depthCompareOp)
+  };
+
+  std::vector<vk::PipelineColorBlendAttachmentState> blendAttachments(settings.colorFormats.size());
+  constexpr vk::ColorComponentFlags allChannels =
+    vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+    vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+  for (std::size_t i = 0; i < blendAttachments.size(); ++i) {
+    if (settings.blends.empty()) {
+      blendAttachments[i] = vk::PipelineColorBlendAttachmentState{
+        .blendEnable    = false,
+        .colorWriteMask = allChannels
+      };
+    } else {
+      const auto& b = settings.blends[i];
+      blendAttachments[i] = vk::PipelineColorBlendAttachmentState{
+        .blendEnable          = b.enable,
+        .srcColorBlendFactor  = static_cast<vk::BlendFactor>(b.srcColorFactor),
+        .dstColorBlendFactor  = static_cast<vk::BlendFactor>(b.dstColorFactor),
+        .colorBlendOp         = static_cast<vk::BlendOp>(b.colorOp),
+        .srcAlphaBlendFactor  = static_cast<vk::BlendFactor>(b.srcAlphaFactor),
+        .dstAlphaBlendFactor  = static_cast<vk::BlendFactor>(b.dstAlphaFactor),
+        .alphaBlendOp         = static_cast<vk::BlendOp>(b.alphaOp),
+        .colorWriteMask       = allChannels
+      };
+    }
+  }
+
+  vk::PipelineColorBlendStateCreateInfo colorBlend{
+    .attachmentCount  = static_cast<uint32_t>(blendAttachments.size()),
+    .pAttachments     = blendAttachments.data()
+  };
+
+  std::array<vk::DynamicState, 2> dynamicStates = {
+    vk::DynamicState::eViewport,
+    vk::DynamicState::eScissor
+  };
+  vk::PipelineDynamicStateCreateInfo dynamic{
+    .dynamicStateCount  = static_cast<uint32_t>(dynamicStates.size()),
+    .pDynamicStates     = dynamicStates.data()
+  };
+
+  std::vector<vk::Format> colorFormats;
+  colorFormats.reserve(settings.colorFormats.size());
+  for (auto f : settings.colorFormats)
+    colorFormats.emplace_back(static_cast<vk::Format>(f));
+
+  vk::PipelineRenderingCreateInfo rendering{
+    .colorAttachmentCount     = static_cast<uint32_t>(colorFormats.size()),
+    .pColorAttachmentFormats  = colorFormats.data(),
+    .depthAttachmentFormat    = static_cast<vk::Format>(settings.depthFormat)
+  };
+
+  auto res = m_impl->m_device.createGraphicsPipeline(nullptr, vk::GraphicsPipelineCreateInfo{
+    .pNext                = &rendering,
+    .stageCount           = static_cast<uint32_t>(stages.size()),
+    .pStages              = stages.data(),
+    .pVertexInputState    = &vertexInput,
+    .pInputAssemblyState  = &inputAssembly,
+    .pViewportState       = &viewport,
+    .pRasterizationState  = &rasterization,
+    .pMultisampleState    = &multisample,
+    .pDepthStencilState   = &depthStencil,
+    .pColorBlendState     = &colorBlend,
+    .pDynamicState        = &dynamic,
+    .layout               = m_impl->m_pipelineLayout
+  });
+
+  if (res.result != vk::Result::eSuccess)
+    GRF_PANIC("Failed to create graphics pipeline: {}", vk::to_string(res.result));
+
+  auto pipeline = std::make_shared<Pipeline>(
+    m_impl->m_nextPipelineIndex, m_impl->m_pipelineLayout, res.value
+  );
+  m_impl->m_pipelines[m_impl->m_nextPipelineIndex++] = pipeline;
+
+  return GraphicsPipeline(pipeline);
 }
 
 ComputePipeline GRF::createComputePipeline(Shader shader) {

@@ -18,7 +18,6 @@ public:
   bool valid() const;
 
 private:
-  Shader() = default;
   Shader(ShaderType, const std::string&);
 };
 

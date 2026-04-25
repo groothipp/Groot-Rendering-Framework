@@ -38,10 +38,12 @@ public:
   Img2D createImg2D(Format, uint32_t, uint32_t);
   Img3D createImg3D(Format, uint32_t, uint32_t, uint32_t);
   Sampler createSampler(const SamplerSettings&);
+  DepthImage createDepthImage(Format, uint32_t, uint32_t, bool sampled = false);
   Ring<Buffer> createBufferRing(BufferIntent, std::size_t);
   Ring<Img2D> createImg2DRing(Format, uint32_t, uint32_t);
   Ring<Img3D> createImg3DRing(Format, uint32_t, uint32_t, uint32_t);
   ComputePipeline createComputePipeline(Shader);
+  GraphicsPipeline createGraphicsPipeline(Shader vertex, Shader fragment, const GraphicsPipelineSettings&);
 
   Fence createFence(bool signaled = false);
   Semaphore createSemaphore();

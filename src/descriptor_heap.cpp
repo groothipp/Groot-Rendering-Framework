@@ -195,6 +195,29 @@ void DescriptorHeap::addImg3D(std::shared_ptr<Image> impl) {
   impl->m_heapIndexSampled = m_nextIndex[g_tex3DBinding]++;
 }
 
+uint32_t DescriptorHeap::addImg2DStorageOnly(vk::ImageView view) {
+  if (m_nextIndex[g_img2DBinding] == m_maxVal[g_img2DBinding])
+    GRF_PANIC("Failed to add storage-only Img2D -- heap full");
+
+  vk::DescriptorImageInfo info{
+    .imageView    = view,
+    .imageLayout  = vk::ImageLayout::eGeneral
+  };
+
+  vk::WriteDescriptorSet write{
+    .dstSet           = m_set,
+    .dstBinding       = g_img2DBinding,
+    .dstArrayElement  = m_nextIndex[g_img2DBinding],
+    .descriptorCount  = 1,
+    .descriptorType   = vk::DescriptorType::eStorageImage,
+    .pImageInfo       = &info
+  };
+
+  m_device.updateDescriptorSets(1, &write, 0, nullptr);
+
+  return m_nextIndex[g_img2DBinding]++;
+}
+
 void DescriptorHeap::addSampler(std::shared_ptr<Sampler::Impl> impl) {
   if (m_nextIndex[g_samplerBinding] == m_maxVal[g_samplerBinding])
     GRF_PANIC("Failed to add Sampler -- heap full");

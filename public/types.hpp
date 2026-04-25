@@ -81,7 +81,10 @@ enum class Format {
   bc6h_ufloat         = 143,
   bc6h_sfloat         = 144,
   bc7_unorm           = 145,
-  bc7_srgb            = 146
+  bc7_srgb            = 146,
+  d16_unorm           = 124,
+  d32_sfloat          = 126,
+  d24_unorm_s8_uint   = 129
 };
 
 enum class SampleMode {
@@ -125,6 +128,83 @@ enum class PresentMode {
   Immediate
 };
 
+enum class Topology {
+  PointList     = 0,
+  LineList      = 1,
+  LineStrip     = 2,
+  TriangleList  = 3,
+  TriangleStrip = 4,
+  TriangleFan   = 5
+};
+
+enum class PolygonMode {
+  Fill  = 0,
+  Line  = 1,
+  Point = 2
+};
+
+enum class CullMode {
+  None          = 0,
+  Front         = 1,
+  Back          = 2,
+  FrontAndBack  = 3
+};
+
+enum class FrontFace {
+  CounterClockwise  = 0,
+  Clockwise         = 1
+};
+
+enum class CompareOp {
+  Never           = 0,
+  Less            = 1,
+  Equal           = 2,
+  LessOrEqual     = 3,
+  Greater         = 4,
+  NotEqual        = 5,
+  GreaterOrEqual  = 6,
+  Always          = 7
+};
+
+enum class BlendFactor {
+  Zero                  = 0,
+  One                   = 1,
+  SrcColor              = 2,
+  OneMinusSrcColor      = 3,
+  DstColor              = 4,
+  OneMinusDstColor      = 5,
+  SrcAlpha              = 6,
+  OneMinusSrcAlpha      = 7,
+  DstAlpha              = 8,
+  OneMinusDstAlpha      = 9,
+  ConstantColor         = 10,
+  OneMinusConstantColor = 11,
+  ConstantAlpha         = 12,
+  OneMinusConstantAlpha = 13,
+  SrcAlphaSaturate      = 14
+};
+
+enum class BlendOp {
+  Add             = 0,
+  Subtract        = 1,
+  ReverseSubtract = 2,
+  Min             = 3,
+  Max             = 4
+};
+
+enum class SampleCount {
+  e1  = 1,
+  e2  = 2,
+  e4  = 4,
+  e8  = 8,
+  e16 = 16
+};
+
+enum class IndexFormat {
+  U16 = 0,
+  U32 = 1
+};
+
 struct Settings {
   std::string                   windowTitle = "GRF Application";
   std::pair<uint32_t, uint32_t> windowSize = { 1280u, 720u };
@@ -147,6 +227,30 @@ struct ImageData {
   std::vector<std::byte> bytes;
   uint32_t               width;
   uint32_t               height;
+};
+
+struct BlendState {
+  bool        enable          = false;
+  BlendFactor srcColorFactor  = BlendFactor::One;
+  BlendFactor dstColorFactor  = BlendFactor::Zero;
+  BlendOp     colorOp         = BlendOp::Add;
+  BlendFactor srcAlphaFactor  = BlendFactor::One;
+  BlendFactor dstAlphaFactor  = BlendFactor::Zero;
+  BlendOp     alphaOp         = BlendOp::Add;
+};
+
+struct GraphicsPipelineSettings {
+  std::vector<Format>     colorFormats;
+  Format                  depthFormat     = Format::undefined;
+  Topology                topology        = Topology::TriangleList;
+  PolygonMode             polygonMode     = PolygonMode::Fill;
+  CullMode                cullMode        = CullMode::Back;
+  FrontFace               frontFace       = FrontFace::CounterClockwise;
+  bool                    depthTest       = false;
+  bool                    depthWrite      = false;
+  CompareOp               depthCompareOp  = CompareOp::Less;
+  std::vector<BlendState> blends;
+  SampleCount             sampleCount     = SampleCount::e1;
 };
 
 }

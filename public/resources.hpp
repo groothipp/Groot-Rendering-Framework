@@ -146,6 +146,21 @@ private:
   explicit Cubemap(std::weak_ptr<Image>);
 };
 
+class DepthImage {
+  friend class GRF;
+
+  std::weak_ptr<Image> m_img;
+
+public:
+  std::pair<uint32_t, uint32_t> dims() const;
+  Format format() const;
+  uint32_t heapIndex() const;
+  bool valid() const;
+
+private:
+  explicit DepthImage(std::weak_ptr<Image>);
+};
+
 class Sampler {
   friend class Allocator;
   friend class GRF;
@@ -173,6 +188,10 @@ class SwapchainImage {
 
   class Impl;
   std::shared_ptr<Impl> m_impl;
+
+public:
+  bool valid() const;
+  uint32_t heapIndex() const;
 
 private:
   explicit SwapchainImage(std::shared_ptr<Impl>);

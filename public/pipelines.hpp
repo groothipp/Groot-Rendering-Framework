@@ -18,4 +18,16 @@ private:
   explicit ComputePipeline(std::shared_ptr<Pipeline>);
 };
 
+class GraphicsPipeline {
+  friend class GRF;
+
+  std::shared_ptr<Pipeline> m_impl;
+
+public:
+  bool valid() const;
+
+private:
+  explicit GraphicsPipeline(std::shared_ptr<Pipeline>);
+};
+
 }

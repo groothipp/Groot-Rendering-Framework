@@ -69,7 +69,8 @@ Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
                     vk::BufferUsageFlagBits::eShaderDeviceAddress |
                     vk::BufferUsageFlagBits::eTransferSrc         |
                     vk::BufferUsageFlagBits::eTransferDst         |
-                    vk::BufferUsageFlagBits::eIndirectBuffer
+                    vk::BufferUsageFlagBits::eIndirectBuffer      |
+                    vk::BufferUsageFlagBits::eIndexBuffer
   };
 
   auto [usage, flags] = getVMAflags(intent);

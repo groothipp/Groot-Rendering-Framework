@@ -324,6 +324,8 @@ void GRF::Impl::createSwapchain() {
     .oldSwapchain     = nullptr,
   });
 
+  const bool storageSupported = static_cast<bool>(usage & vk::ImageUsageFlagBits::eStorage);
+
   auto imgs = m_device.getSwapchainImagesKHR(m_swapchain);
   for (const auto& img : imgs) {
     auto view = m_device.createImageView(vk::ImageViewCreateInfo{
@@ -336,7 +338,12 @@ void GRF::Impl::createSwapchain() {
         .layerCount = 1,
       },
     });
-    m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view));
+
+    uint32_t heapIndex = 0xFFFFFFFF;
+    if (storageSupported)
+      heapIndex = m_descriptorHeap->addImg2DStorageOnly(view);
+
+    m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view, heapIndex));
   }
 }
 
