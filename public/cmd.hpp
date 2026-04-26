@@ -82,12 +82,23 @@ public:
   void release(const TransitionImage& img, Layout from, Layout to, QueueType dstQueue);
   void acquire(const TransitionImage& img, Layout from, Layout to, QueueType srcQueue);
 
+  void copyBuffer(const Buffer& src, const Buffer& dst);
+  void copyBuffer(const Buffer& src, const Buffer& dst,
+                  std::size_t size,
+                  std::size_t srcOffset = 0,
+                  std::size_t dstOffset = 0);
+  void copyBufferToImage(const Buffer& src, const TransitionImage& dst);
+  void copyImage(const TransitionImage& src, const TransitionImage& dst);
+  void blitImage(const TransitionImage& src, const TransitionImage& dst,
+                 Filter filter = Filter::Linear);
+
 private:
   explicit CommandBuffer(std::shared_ptr<Impl>);
 
   static ImageBits extractColor(const ColorAttachment&);
   static ImageBits extractDepth(const DepthAttachment&);
   static ImageBits extractAny(const TransitionImage&);
+  static void      setTrackedLayout(const TransitionImage&, Layout);
 };
 
 }

@@ -44,40 +44,60 @@ ImageBits CommandBuffer::extractDepth(const DepthAttachment& a) {
   };
 }
 
+void CommandBuffer::setTrackedLayout(const TransitionImage& img, Layout layout) {
+  auto vkLayout = static_cast<vk::ImageLayout>(layout);
+  std::visit([vkLayout](const auto& v) {
+    using V = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<V, SwapchainImage>) {
+      v.m_impl->m_layout = vkLayout;
+    } else {
+      v.m_img->m_layout = vkLayout;
+    }
+  }, img);
+}
+
 ImageBits CommandBuffer::extractAny(const TransitionImage& img) {
   return std::visit([](const auto& v) -> ImageBits {
     using V = std::decay_t<decltype(v)>;
     if constexpr (std::is_same_v<V, SwapchainImage>) {
       return ImageBits{
-        .image  = v.m_impl->m_image,
-        .view   = v.m_impl->m_view,
-        .aspect = vk::ImageAspectFlagBits::eColor
+        .image         = v.m_impl->m_image,
+        .view          = v.m_impl->m_view,
+        .aspect        = vk::ImageAspectFlagBits::eColor,
+        .currentLayout = v.m_impl->m_layout
       };
     } else if constexpr (std::is_same_v<V, DepthImage>) {
+      auto img = v.m_img;
       return ImageBits{
-        .image      = v.m_img->m_image,
-        .view       = v.m_img->m_view,
-        .aspect     = vk::ImageAspectFlagBits::eDepth,
-        .layerCount = 1,
-        .impl       = v.m_img
+        .image         = img->m_image,
+        .view          = img->m_view,
+        .aspect        = vk::ImageAspectFlagBits::eDepth,
+        .layerCount    = 1,
+        .extent        = { img->m_width, img->m_height, std::max(img->m_depth, 1u) },
+        .currentLayout = img->m_layout,
+        .impl          = img
       };
     } else if constexpr (std::is_same_v<V, Cubemap>) {
       auto img = v.m_img;
       return ImageBits{
-        .image      = img->m_image,
-        .view       = img->m_view,
-        .aspect     = vk::ImageAspectFlagBits::eColor,
-        .layerCount = 6,
-        .impl       = img
+        .image         = img->m_image,
+        .view          = img->m_view,
+        .aspect        = vk::ImageAspectFlagBits::eColor,
+        .layerCount    = 6,
+        .extent        = { img->m_width, img->m_height, 1 },
+        .currentLayout = img->m_layout,
+        .impl          = img
       };
     } else {
       auto img = v.m_img;
       return ImageBits{
-        .image      = img->m_image,
-        .view       = img->m_view,
-        .aspect     = vk::ImageAspectFlagBits::eColor,
-        .layerCount = 1,
-        .impl       = img
+        .image         = img->m_image,
+        .view          = img->m_view,
+        .aspect        = vk::ImageAspectFlagBits::eColor,
+        .layerCount    = 1,
+        .extent        = { img->m_width, img->m_height, std::max(img->m_depth, 1u) },
+        .currentLayout = img->m_layout,
+        .impl          = img
       };
     }
   }, img);
@@ -338,8 +358,8 @@ void CommandBuffer::transition(const TransitionImage& img, Layout from, Layout t
   if (bits.impl != nullptr) {
     bits.impl->m_lastUseValues[static_cast<size_t>(m_impl->m_queueType)]
       = std::max(bits.impl->m_lastUseValues[static_cast<size_t>(m_impl->m_queueType)], m_impl->m_reservedValue);
-    bits.impl->m_layout = static_cast<vk::ImageLayout>(to);
   }
+  setTrackedLayout(img, to);
 
   vk::ImageMemoryBarrier2 barrier{
     .srcStageMask     = vk::PipelineStageFlagBits2::eAllCommands,
@@ -400,8 +420,8 @@ void CommandBuffer::acquire(const TransitionImage& img, Layout from, Layout to, 
   if (bits.impl != nullptr) {
     bits.impl->m_lastUseValues[static_cast<size_t>(m_impl->m_queueType)]
       = std::max(bits.impl->m_lastUseValues[static_cast<size_t>(m_impl->m_queueType)], m_impl->m_reservedValue);
-    bits.impl->m_layout = static_cast<vk::ImageLayout>(to);
   }
+  setTrackedLayout(img, to);
 
   vk::ImageMemoryBarrier2 barrier{
     .srcStageMask        = {},
@@ -423,6 +443,180 @@ void CommandBuffer::acquire(const TransitionImage& img, Layout from, Layout to, 
   m_impl->m_buffer.pipelineBarrier2(vk::DependencyInfo{
     .imageMemoryBarrierCount = 1,
     .pImageMemoryBarriers    = &barrier
+  });
+}
+
+void CommandBuffer::copyBuffer(const Buffer& src, const Buffer& dst) {
+  std::size_t size = std::min(src.m_impl->m_size, dst.m_impl->m_size);
+  copyBuffer(src, dst, size, 0, 0);
+}
+
+void CommandBuffer::copyBuffer(const Buffer& src, const Buffer& dst,
+                               std::size_t size,
+                               std::size_t srcOffset,
+                               std::size_t dstOffset) {
+  if (size == 0) return;
+  if (srcOffset + size > src.m_impl->m_size)
+    GRF_PANIC("copyBuffer: src range [{}, {}) exceeds src buffer size {}",
+              srcOffset, srcOffset + size, src.m_impl->m_size);
+  if (dstOffset + size > dst.m_impl->m_size)
+    GRF_PANIC("copyBuffer: dst range [{}, {}) exceeds dst buffer size {}",
+              dstOffset, dstOffset + size, dst.m_impl->m_size);
+
+  const auto qIdx = static_cast<size_t>(m_impl->m_queueType);
+  src.m_impl->m_lastUseValues[qIdx] = std::max(src.m_impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+  dst.m_impl->m_lastUseValues[qIdx] = std::max(dst.m_impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+
+  vk::BufferCopy2 region{
+    .srcOffset = srcOffset,
+    .dstOffset = dstOffset,
+    .size      = size
+  };
+
+  m_impl->m_buffer.copyBuffer2(vk::CopyBufferInfo2{
+    .srcBuffer   = src.m_impl->m_buffer,
+    .dstBuffer   = dst.m_impl->m_buffer,
+    .regionCount = 1,
+    .pRegions    = &region
+  });
+}
+
+void CommandBuffer::copyBufferToImage(const Buffer& src, const TransitionImage& dst) {
+  ImageBits    bits   = extractAny(dst);
+  vk::Extent3D extent = bits.extent.width != 0 ? bits.extent
+    : vk::Extent3D{ m_impl->m_swapchainExtent.width, m_impl->m_swapchainExtent.height, 1 };
+
+  const auto qIdx = static_cast<size_t>(m_impl->m_queueType);
+  src.m_impl->m_lastUseValues[qIdx] = std::max(src.m_impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+  if (bits.impl != nullptr)
+    bits.impl->m_lastUseValues[qIdx] = std::max(bits.impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+
+  vk::BufferImageCopy2 region{
+    .bufferOffset      = 0,
+    .bufferRowLength   = 0,
+    .bufferImageHeight = 0,
+    .imageSubresource  = {
+      .aspectMask     = bits.aspect,
+      .mipLevel       = 0,
+      .baseArrayLayer = 0,
+      .layerCount     = bits.layerCount
+    },
+    .imageOffset = { 0, 0, 0 },
+    .imageExtent = extent
+  };
+
+  m_impl->m_buffer.copyBufferToImage2(vk::CopyBufferToImageInfo2{
+    .srcBuffer      = src.m_impl->m_buffer,
+    .dstImage       = bits.image,
+    .dstImageLayout = bits.currentLayout,
+    .regionCount    = 1,
+    .pRegions       = &region
+  });
+}
+
+void CommandBuffer::copyImage(const TransitionImage& src, const TransitionImage& dst) {
+  ImageBits sBits = extractAny(src);
+  ImageBits dBits = extractAny(dst);
+
+  const auto qIdx = static_cast<size_t>(m_impl->m_queueType);
+  if (sBits.impl != nullptr)
+    sBits.impl->m_lastUseValues[qIdx] = std::max(sBits.impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+  if (dBits.impl != nullptr)
+    dBits.impl->m_lastUseValues[qIdx] = std::max(dBits.impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+
+  const vk::Extent3D fallback{ m_impl->m_swapchainExtent.width, m_impl->m_swapchainExtent.height, 1 };
+  vk::Extent3D srcExtent = sBits.extent.width != 0 ? sBits.extent : fallback;
+  vk::Extent3D dstExtent = dBits.extent.width != 0 ? dBits.extent : fallback;
+  vk::Extent3D extent{
+    std::min(srcExtent.width,  dstExtent.width),
+    std::min(srcExtent.height, dstExtent.height),
+    std::min(srcExtent.depth,  dstExtent.depth)
+  };
+  uint32_t layerCount = std::min(sBits.layerCount, dBits.layerCount);
+
+  vk::ImageCopy2 region{
+    .srcSubresource = {
+      .aspectMask     = sBits.aspect,
+      .mipLevel       = 0,
+      .baseArrayLayer = 0,
+      .layerCount     = layerCount
+    },
+    .srcOffset = { 0, 0, 0 },
+    .dstSubresource = {
+      .aspectMask     = dBits.aspect,
+      .mipLevel       = 0,
+      .baseArrayLayer = 0,
+      .layerCount     = layerCount
+    },
+    .dstOffset = { 0, 0, 0 },
+    .extent    = extent
+  };
+
+  m_impl->m_buffer.copyImage2(vk::CopyImageInfo2{
+    .srcImage       = sBits.image,
+    .srcImageLayout = sBits.currentLayout,
+    .dstImage       = dBits.image,
+    .dstImageLayout = dBits.currentLayout,
+    .regionCount    = 1,
+    .pRegions       = &region
+  });
+}
+
+void CommandBuffer::blitImage(const TransitionImage& src, const TransitionImage& dst,
+                              Filter filter) {
+  ImageBits sBits = extractAny(src);
+  ImageBits dBits = extractAny(dst);
+
+  const auto qIdx = static_cast<size_t>(m_impl->m_queueType);
+  if (sBits.impl != nullptr)
+    sBits.impl->m_lastUseValues[qIdx] = std::max(sBits.impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+  if (dBits.impl != nullptr)
+    dBits.impl->m_lastUseValues[qIdx] = std::max(dBits.impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+
+  const vk::Extent3D fallback{ m_impl->m_swapchainExtent.width, m_impl->m_swapchainExtent.height, 1 };
+  vk::Extent3D srcExtent = sBits.extent.width != 0 ? sBits.extent : fallback;
+  vk::Extent3D dstExtent = dBits.extent.width != 0 ? dBits.extent : fallback;
+  uint32_t     layerCount = std::min(sBits.layerCount, dBits.layerCount);
+
+  vk::ImageBlit2 region{
+    .srcSubresource = {
+      .aspectMask     = sBits.aspect,
+      .mipLevel       = 0,
+      .baseArrayLayer = 0,
+      .layerCount     = layerCount
+    },
+    .srcOffsets = std::array<vk::Offset3D, 2>{
+      vk::Offset3D{ 0, 0, 0 },
+      vk::Offset3D{
+        static_cast<int32_t>(srcExtent.width),
+        static_cast<int32_t>(srcExtent.height),
+        static_cast<int32_t>(srcExtent.depth)
+      }
+    },
+    .dstSubresource = {
+      .aspectMask     = dBits.aspect,
+      .mipLevel       = 0,
+      .baseArrayLayer = 0,
+      .layerCount     = layerCount
+    },
+    .dstOffsets = std::array<vk::Offset3D, 2>{
+      vk::Offset3D{ 0, 0, 0 },
+      vk::Offset3D{
+        static_cast<int32_t>(dstExtent.width),
+        static_cast<int32_t>(dstExtent.height),
+        static_cast<int32_t>(dstExtent.depth)
+      }
+    }
+  };
+
+  m_impl->m_buffer.blitImage2(vk::BlitImageInfo2{
+    .srcImage       = sBits.image,
+    .srcImageLayout = sBits.currentLayout,
+    .dstImage       = dBits.image,
+    .dstImageLayout = dBits.currentLayout,
+    .regionCount    = 1,
+    .pRegions       = &region,
+    .filter         = static_cast<vk::Filter>(filter)
   });
 }
 
