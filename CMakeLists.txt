@@ -26,6 +26,7 @@ set(GRF_INTERNAL_INCL_DIR ${CMAKE_SOURCE_DIR}/internal)
 set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/cmd.hpp
   ${GRF_PUBLIC_INCL_DIR}/grf.hpp
+  ${GRF_PUBLIC_INCL_DIR}/input.hpp
   ${GRF_PUBLIC_INCL_DIR}/pipelines.hpp
   ${GRF_PUBLIC_INCL_DIR}/resources.hpp
   ${GRF_PUBLIC_INCL_DIR}/ring.hpp
@@ -51,6 +52,7 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/descriptor_heap.hpp
   ${GRF_INTERNAL_INCL_DIR}/graveyard.hpp
   ${GRF_INTERNAL_INCL_DIR}/grf.hpp
+  ${GRF_INTERNAL_INCL_DIR}/input.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
   ${GRF_INTERNAL_INCL_DIR}/pipelines.hpp
   ${GRF_INTERNAL_INCL_DIR}/swapchain_image.hpp
@@ -71,6 +73,7 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/grf.cpp
   ${GRF_SOURCE_DIR}/grf_init.cpp
+  ${GRF_SOURCE_DIR}/input.cpp
   ${GRF_SOURCE_DIR}/pipelines.cpp
   ${GRF_SOURCE_DIR}/resources.cpp
   ${GRF_SOURCE_DIR}/stb.cpp

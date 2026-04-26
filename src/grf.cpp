@@ -35,6 +35,7 @@ std::pair<uint32_t, double> GRF::beginFrame() {
   if (m_impl->m_endTime == GRF::Impl::TimePoint{}) [[unlikely]]
     m_impl->m_endTime = now;
 
+  m_impl->m_input->m_impl->onPollBegin();
   glfwPollEvents();
   m_impl->m_resourceManager->beginUpdates();
 
@@ -42,6 +43,10 @@ std::pair<uint32_t, double> GRF::beginFrame() {
   m_impl->m_startTime = now;
 
   return { m_impl->m_frameIndex, frameTime };
+}
+
+Input& GRF::input() {
+  return *m_impl->m_input;
 }
 
 SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
@@ -661,6 +666,8 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   createSwapchain();
   createPipelineLayout();
   createCommandPools();
+
+  m_input = std::unique_ptr<Input>(new Input(std::make_unique<Input::Impl>(m_window)));
 
   log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
     std::string(GRF_VERSION),

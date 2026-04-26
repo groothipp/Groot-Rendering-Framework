@@ -6,6 +6,7 @@
 #include "internal/resources/resource_manager.hpp"
 #include "internal/allocator.hpp"
 #include "internal/descriptor_heap.hpp"
+#include "internal/input.hpp"
 #include "internal/swapchain_image.hpp"
 
 #include <vulkan/vulkan.hpp>
@@ -40,6 +41,7 @@ public:
   std::unique_ptr<DescriptorHeap>   m_descriptorHeap = nullptr;
   std::unique_ptr<ShaderManager>    m_shaderManager = nullptr;
   std::shared_ptr<ResourceManager>  m_resourceManager = nullptr;
+  std::unique_ptr<Input>            m_input = nullptr;
 
   vk::SwapchainKHR                  m_swapchain = nullptr;
   vk::Extent2D                      m_swapchainExtent;

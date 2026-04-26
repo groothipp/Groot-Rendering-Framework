@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./cmd.hpp"
+#include "./input.hpp"
 #include "./pipelines.hpp"
 #include "./resources.hpp"
 #include "./ring.hpp"
@@ -26,6 +27,8 @@ public:
   bool running(std::function<bool()> endCond = [](){ return false; }) const;
   std::pair<uint32_t, double> beginFrame();
   void waitForResourceUpdates();
+
+  Input& input();
   SwapchainImage nextSwapchainImage(const Semaphore& signalOnAcquire);
   void present(const SwapchainImage&, std::span<const Semaphore> waits = {});
   void waitFences(const std::vector<Fence>&);
