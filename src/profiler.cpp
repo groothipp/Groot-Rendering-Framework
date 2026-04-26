@@ -164,6 +164,29 @@ void Profiler::render() {
     ImVec2(-FLT_MIN, 80.0f)
   );
 
+  if (ImGui::IsItemHovered()) {
+    const ImVec2 rectMin = ImGui::GetItemRectMin();
+    const ImVec2 rectMax = ImGui::GetItemRectMax();
+    const float  width   = rectMax.x - rectMin.x;
+    if (width > 0.0f) {
+      const float mouseX = std::clamp(ImGui::GetIO().MousePos.x, rectMin.x, rectMax.x);
+      const float t      = (mouseX - rectMin.x) / width;
+
+      const std::size_t bufSize = m_impl->m_graphBuffer.size();
+      std::size_t       idx     = static_cast<std::size_t>(t * static_cast<float>(bufSize));
+      if (idx >= bufSize) idx = bufSize - 1;
+
+      ImGui::GetWindowDrawList()->AddLine(
+        ImVec2(mouseX, rectMin.y),
+        ImVec2(mouseX, rectMax.y),
+        IM_COL32(232, 220, 192, 180),
+        1.0f
+      );
+
+      ImGui::SetTooltip("%.3f ms", m_impl->m_graphBuffer[idx]);
+    }
+  }
+
   if (!m_impl->m_stats.empty()) {
     ImGui::Separator();
     if (ImGui::BeginTable("zones", 2,
