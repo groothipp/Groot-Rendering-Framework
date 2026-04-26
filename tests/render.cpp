@@ -32,7 +32,7 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
   grf::Ring<grf::Semaphore>     rendered = grf.createSemaphoreRing();
   grf::Ring<grf::Fence>         fences   = grf.createFenceRing(true);
 
-  const uint64_t frameLimit = 120;
+  const uint64_t frameLimit = 1200;
   uint64_t       framesRun  = 0;
 
   while (grf.running([&]{ return framesRun >= frameLimit; })) {
@@ -53,7 +53,10 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
 
     cmds[idx].begin();
     cmds[idx].beginProfile("frame");
+
+    cmds[idx].beginProfile("acquire transition");
     cmds[idx].transition(swap, grf::Layout::Undefined, grf::Layout::ColorAttachmentOptimal);
+    cmds[idx].endProfile();
 
     cmds[idx].beginRendering(
       std::array{ grf::ColorAttachment{
@@ -71,9 +74,12 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
     grf.gui().render(cmds[idx]);
     cmds[idx].endProfile();
     cmds[idx].endRendering();
+
+    cmds[idx].beginProfile("present transition");
+    cmds[idx].transition(swap, grf::Layout::ColorAttachmentOptimal, grf::Layout::PresentSrc);
     cmds[idx].endProfile();
 
-    cmds[idx].transition(swap, grf::Layout::ColorAttachmentOptimal, grf::Layout::PresentSrc);
+    cmds[idx].endProfile();
     cmds[idx].end();
 
     grf.submit(

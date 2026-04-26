@@ -60,7 +60,7 @@ void Profiler::Impl::beginFrame(double dtSeconds, uint32_t frameSlot) {
     auto& zones = m_pending[m_currentSlot];
     if (!zones.empty()) {
       const uint32_t first = slotFirstQuery(m_currentSlot);
-      const uint32_t count = slotQueryCount();
+      const uint32_t count = static_cast<uint32_t>(zones.size()) * 2;
       std::vector<uint64_t> raw(count, 0);
 
       auto res = m_device.getQueryPoolResults(
@@ -164,15 +164,12 @@ void Profiler::render() {
     ImVec2(-FLT_MIN, 80.0f)
   );
 
-  ImGui::Separator();
-
-  if (m_impl->m_stats.empty()) {
-    ImGui::TextDisabled("(no profile zones recorded yet)");
-  } else {
+  if (!m_impl->m_stats.empty()) {
+    ImGui::Separator();
     if (ImGui::BeginTable("zones", 2,
         ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
-      ImGui::TableSetupColumn("Zone",        ImGuiTableColumnFlags_WidthStretch);
-      ImGui::TableSetupColumn("Avg (ms)",    ImGuiTableColumnFlags_WidthFixed, 80.0f);
+      ImGui::TableSetupColumn("Zone",     ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Avg (ms)", ImGuiTableColumnFlags_WidthFixed, 80.0f);
       ImGui::TableHeadersRow();
 
       for (const auto& [name, s] : m_impl->m_stats) {
