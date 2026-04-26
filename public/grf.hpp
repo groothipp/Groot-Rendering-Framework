@@ -4,6 +4,7 @@
 #include "./gui.hpp"
 #include "./input.hpp"
 #include "./pipelines.hpp"
+#include "./profiler.hpp"
 #include "./resources.hpp"
 #include "./ring.hpp"
 #include "./shader.hpp"
@@ -29,8 +30,9 @@ public:
   std::pair<uint32_t, double> beginFrame();
   void waitForResourceUpdates();
 
-  Input& input();
-  GUI&   gui();
+  Input&    input();
+  GUI&      gui();
+  Profiler& profiler();
   SwapchainImage nextSwapchainImage(const Semaphore& signalOnAcquire);
   void present(const SwapchainImage&, std::span<const Semaphore> waits = {});
   void waitFences(const std::vector<Fence>&);

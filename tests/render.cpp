@@ -44,12 +44,15 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
     ImGui::Text("gui wants mouse: %s", grf.gui().wantsMouse() ? "yes" : "no");
     ImGui::End();
 
+    grf.profiler().render();
+
     grf.waitFences({ fences[idx] });
     grf.resetFences({ fences[idx] });
 
     grf::SwapchainImage swap = grf.nextSwapchainImage(acquired[idx]);
 
     cmds[idx].begin();
+    cmds[idx].beginProfile("frame");
     cmds[idx].transition(swap, grf::Layout::Undefined, grf::Layout::ColorAttachmentOptimal);
 
     cmds[idx].beginRendering(
@@ -60,10 +63,15 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
         .clearValue = { 0.05f, 0.05f, 0.08f, 1.0f }
       } }
     );
+    cmds[idx].beginProfile("triangle");
     cmds[idx].bindPipeline(pipeline);
     cmds[idx].draw(3);
+    cmds[idx].endProfile();
+    cmds[idx].beginProfile("imgui");
     grf.gui().render(cmds[idx]);
+    cmds[idx].endProfile();
     cmds[idx].endRendering();
+    cmds[idx].endProfile();
 
     cmds[idx].transition(swap, grf::Layout::ColorAttachmentOptimal, grf::Layout::PresentSrc);
     cmds[idx].end();

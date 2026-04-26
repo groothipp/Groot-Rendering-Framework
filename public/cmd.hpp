@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <type_traits>
 #include <variant>
 
@@ -56,6 +57,9 @@ public:
     static_assert(std::is_trivially_copyable_v<T>);
     pushBytes(std::as_bytes(std::span{ &data, 1 }), offset);
   }
+
+  void beginProfile(const std::string& name);
+  void endProfile();
 
   void beginRendering(
     std::span<const ColorAttachment> colors,

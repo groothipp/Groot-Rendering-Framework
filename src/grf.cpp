@@ -43,6 +43,8 @@ std::pair<uint32_t, double> GRF::beginFrame() {
   double frameTime = GRF::Impl::Duration(m_impl->m_endTime - m_impl->m_startTime).count();
   m_impl->m_startTime = now;
 
+  m_impl->m_profiler->m_impl->beginFrame(frameTime, m_impl->m_frameIndex);
+
   return { m_impl->m_frameIndex, frameTime };
 }
 
@@ -52,6 +54,10 @@ Input& GRF::input() {
 
 GUI& GRF::gui() {
   return *m_impl->m_gui;
+}
+
+Profiler& GRF::profiler() {
+  return *m_impl->m_profiler;
 }
 
 SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
@@ -560,7 +566,8 @@ Ring<CommandBuffer> GRF::createCmdRing(QueueType qt) {
       m_impl->m_descriptorHeap->set(),
       m_impl->m_swapchainExtent,
       m_impl->m_pushConstantSize,
-      qt
+      qt,
+      m_impl->m_profiler ? m_impl->m_profiler->m_impl.get() : nullptr
     );
     auto cmd = CommandBuffer(impl);
     ring.m_objs.push_back(cmd);
@@ -684,6 +691,10 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
     static_cast<uint32_t>(m_swapchainImages.size())
   )));
 
+  m_profiler = std::unique_ptr<Profiler>(new Profiler(std::make_unique<Profiler::Impl>(
+    m_device, m_gpu, m_settings.flightFrames
+  )));
+
   log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
     std::string(GRF_VERSION),
     VK_VERSION_MAJOR(properties.apiVersion),
@@ -697,6 +708,7 @@ GRF::Impl::~Impl() {
   m_device.waitIdle();
 
   m_gui.reset();
+  m_profiler.reset();
 
   m_device.destroyPipelineLayout(m_pipelineLayout);
 

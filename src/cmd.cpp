@@ -4,6 +4,7 @@
 #include "internal/graveyard.hpp"
 #include "internal/log.hpp"
 #include "internal/pipelines.hpp"
+#include "internal/profiler.hpp"
 #include "internal/resources/buffer.hpp"
 #include "internal/resources/image.hpp"
 #include "internal/resources/resource_manager.hpp"
@@ -112,7 +113,8 @@ CommandBuffer::Impl::Impl(
   vk::DescriptorSet descriptorSet,
   vk::Extent2D swapchainExtent,
   uint32_t pushConstantSize,
-  QueueType qt
+  QueueType qt,
+  Profiler::Impl * profiler
 ) : m_resourceManager(rm),
     m_device(device),
     m_pool(pool),
@@ -121,7 +123,8 @@ CommandBuffer::Impl::Impl(
     m_descriptorSet(descriptorSet),
     m_swapchainExtent(swapchainExtent),
     m_pushConstantSize(pushConstantSize),
-    m_queueType(qt)
+    m_queueType(qt),
+    m_profiler(profiler)
 {}
 
 CommandBuffer::Impl::~Impl() {
@@ -152,6 +155,8 @@ void CommandBuffer::begin() {
   m_impl->m_buffer.begin(vk::CommandBufferBeginInfo{
     .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
   });
+
+  m_impl->m_zoneStack.clear();
 
   vk::PipelineBindPoint bindPoints[] = {
     vk::PipelineBindPoint::eGraphics,
@@ -201,6 +206,34 @@ void CommandBuffer::pushBytes(std::span<const std::byte> data, uint32_t offset) 
     offset,
     static_cast<uint32_t>(data.size()),
     data.data()
+  );
+}
+
+void CommandBuffer::beginProfile(const std::string& name) {
+  if (m_impl->m_profiler == nullptr) return;
+
+  auto [beginIdx, endIdx] = m_impl->m_profiler->allocateZone(name);
+  m_impl->m_zoneStack.push_back(endIdx);
+
+  m_impl->m_buffer.writeTimestamp2(
+    vk::PipelineStageFlagBits2::eAllCommands,
+    m_impl->m_profiler->m_pool,
+    beginIdx
+  );
+}
+
+void CommandBuffer::endProfile() {
+  if (m_impl->m_profiler == nullptr) return;
+  if (m_impl->m_zoneStack.empty())
+    GRF_PANIC("CommandBuffer::endProfile called without a matching beginProfile");
+
+  uint32_t endIdx = m_impl->m_zoneStack.back();
+  m_impl->m_zoneStack.pop_back();
+
+  m_impl->m_buffer.writeTimestamp2(
+    vk::PipelineStageFlagBits2::eAllCommands,
+    m_impl->m_profiler->m_pool,
+    endIdx
   );
 }
 

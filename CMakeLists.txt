@@ -29,6 +29,7 @@ set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/gui.hpp
   ${GRF_PUBLIC_INCL_DIR}/input.hpp
   ${GRF_PUBLIC_INCL_DIR}/pipelines.hpp
+  ${GRF_PUBLIC_INCL_DIR}/profiler.hpp
   ${GRF_PUBLIC_INCL_DIR}/resources.hpp
   ${GRF_PUBLIC_INCL_DIR}/ring.hpp
   ${GRF_PUBLIC_INCL_DIR}/shader.hpp
@@ -57,6 +58,7 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/input.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
   ${GRF_INTERNAL_INCL_DIR}/pipelines.hpp
+  ${GRF_INTERNAL_INCL_DIR}/profiler.hpp
   ${GRF_INTERNAL_INCL_DIR}/swapchain_image.hpp
   ${GRF_INTERNAL_INCL_DIR}/sync.hpp
 )
@@ -77,6 +79,7 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/grf_init.cpp
   ${GRF_SOURCE_DIR}/gui.cpp
   ${GRF_SOURCE_DIR}/input.cpp
+  ${GRF_SOURCE_DIR}/profiler.cpp
   ${GRF_SOURCE_DIR}/pipelines.cpp
   ${GRF_SOURCE_DIR}/resources.cpp
   ${GRF_SOURCE_DIR}/stb.cpp

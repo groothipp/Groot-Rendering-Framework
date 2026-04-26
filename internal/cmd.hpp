@@ -1,8 +1,10 @@
 #pragma once
 
 #include "public/cmd.hpp"
+#include "public/profiler.hpp"
 
 #include <memory>
+#include <vector>
 #include <vulkan/vulkan.hpp>
 
 namespace grf {
@@ -30,6 +32,8 @@ public:
   uint32_t                        m_pushConstantSize = 0;
   QueueType                       m_queueType = QueueType::Graphics;
   uint64_t                        m_reservedValue = 0;
+  Profiler::Impl *                m_profiler = nullptr;
+  std::vector<uint32_t>           m_zoneStack;
 
 public:
   Impl(
@@ -41,7 +45,8 @@ public:
     vk::DescriptorSet,
     vk::Extent2D swapchainExtent,
     uint32_t pushConstantSize,
-    QueueType
+    QueueType,
+    Profiler::Impl *
   );
   ~Impl();
 };

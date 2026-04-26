@@ -8,6 +8,7 @@
 #include "internal/descriptor_heap.hpp"
 #include "internal/gui.hpp"
 #include "internal/input.hpp"
+#include "internal/profiler.hpp"
 #include "internal/swapchain_image.hpp"
 
 #include <vulkan/vulkan.hpp>
@@ -44,6 +45,7 @@ public:
   std::shared_ptr<ResourceManager>  m_resourceManager = nullptr;
   std::unique_ptr<Input>            m_input = nullptr;
   std::unique_ptr<GUI>              m_gui = nullptr;
+  std::unique_ptr<Profiler>         m_profiler = nullptr;
 
   vk::SwapchainKHR                  m_swapchain = nullptr;
   vk::Extent2D                      m_swapchainExtent;
