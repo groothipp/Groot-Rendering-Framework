@@ -144,6 +144,7 @@ if(GRF_MAKE_TESTS)
     ${TEST_SOURCE_DIR}/parser.cpp
     ${TEST_SOURCE_DIR}/resource_update.cpp
     ${TEST_SOURCE_DIR}/pipelines.cpp
+    ${TEST_SOURCE_DIR}/render.cpp
     ${TEST_SOURCE_DIR}/ring.cpp
     ${TEST_SOURCE_DIR}/shaders.cpp
   )

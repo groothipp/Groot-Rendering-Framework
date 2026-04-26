@@ -68,9 +68,10 @@ TEST_CASE("cmd: render into swapchain with clear", "[cmd][graphics]") {
 
   grf::Ring<grf::CommandBuffer> ring = grf.createCmdRing(grf::QueueType::Graphics);
   grf::Fence fence = grf.createFence(false);
+  grf::Semaphore acquired = grf.createSemaphore();
 
   grf.beginFrame();
-  grf::SwapchainImage swap = grf.nextSwapchainImage();
+  grf::SwapchainImage swap = grf.nextSwapchainImage(acquired);
 
   ring[0].begin();
   ring[0].transition(swap, grf::Layout::Undefined, grf::Layout::General);
@@ -86,7 +87,7 @@ TEST_CASE("cmd: render into swapchain with clear", "[cmd][graphics]") {
   ring[0].draw(3);
   ring[0].endRendering();
   ring[0].end();
-  grf.submit(ring[0], {}, {}, fence);
+  grf.submit(ring[0], std::array{ acquired }, {}, fence);
 
   grf.waitFences({ fence });
   SUCCEED();
@@ -145,6 +146,55 @@ TEST_CASE("cmd: queue ownership transfer between graphics and compute", "[cmd][o
   grf.submit(computeRing[0], std::array{ handoff }, {}, done);
 
   grf.waitFences({ done });
+  SUCCEED();
+}
+
+TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
+  grf::GRF grf;
+  grf::Shader vs = grf.compileShader(grf::ShaderType::Vertex,
+    std::format("{}/shaders/graphics_minimal.vert.gsl", GRF_TEST_DIR)
+  );
+  grf::Shader fs = grf.compileShader(grf::ShaderType::Fragment,
+    std::format("{}/shaders/graphics_minimal.frag.gsl", GRF_TEST_DIR)
+  );
+  grf::GraphicsPipeline pipe = grf.createGraphicsPipeline(vs, fs, grf::GraphicsPipelineSettings{
+    .colorFormats = { grf::Format::bgra8_srgb }
+  });
+
+  grf::Ring<grf::CommandBuffer> cmds      = grf.createCmdRing(grf::QueueType::Graphics);
+  grf::Ring<grf::Semaphore>     acquired  = grf.createSemaphoreRing();
+  grf::Ring<grf::Semaphore>     rendered  = grf.createSemaphoreRing();
+  grf::Ring<grf::Fence>         fences    = grf.createFenceRing(true);
+
+  for (int frame = 0; frame < 3; ++frame) {
+    auto [idx, _] = grf.beginFrame();
+
+    grf.waitFences({ fences[idx] });
+    grf.resetFences({ fences[idx] });
+
+    grf::SwapchainImage swap = grf.nextSwapchainImage(acquired[idx]);
+
+    cmds[idx].begin();
+    cmds[idx].transition(swap, grf::Layout::Undefined, grf::Layout::General);
+    cmds[idx].beginRendering(
+      std::array{ grf::ColorAttachment{
+        .img        = swap,
+        .loadOp     = grf::LoadOp::Clear,
+        .clearValue = { 0.2f, 0.4f, 0.6f, 1.0f }
+      } }
+    );
+    cmds[idx].bindPipeline(pipe);
+    cmds[idx].draw(3);
+    cmds[idx].endRendering();
+    cmds[idx].transition(swap, grf::Layout::General, grf::Layout::PresentSrc);
+    cmds[idx].end();
+
+    grf.submit(cmds[idx], std::array{ acquired[idx] }, std::array{ rendered[idx] }, fences[idx]);
+    grf.present(swap, std::array{ rendered[idx] });
+
+    grf.endFrame();
+  }
+
   SUCCEED();
 }
 

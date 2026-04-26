@@ -115,11 +115,14 @@ enum class QueueType {
 };
 
 enum class Layout {
-  Undefined = 0,
-  General = 1,
-  ShaderReadOptimal = 5,
-  TransferSrcOptimal = 6,
-  TransferDstOptimal = 7
+  Undefined               = 0,
+  General                 = 1,
+  ColorAttachmentOptimal  = 2,
+  ShaderReadOptimal       = 5,
+  TransferSrcOptimal      = 6,
+  TransferDstOptimal      = 7,
+  DepthAttachmentOptimal  = 1000241000,
+  PresentSrc              = 1000001002
 };
 
 enum class PresentMode {

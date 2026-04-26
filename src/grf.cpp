@@ -44,11 +44,34 @@ std::pair<uint32_t, double> GRF::beginFrame() {
   return { m_impl->m_frameIndex, frameTime };
 }
 
-SwapchainImage GRF::nextSwapchainImage() {
-  auto [res, index] = m_impl->m_device.acquireNextImageKHR(m_impl->m_swapchain, m_impl->g_timeout);
+SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
+  auto [res, index] = m_impl->m_device.acquireNextImageKHR(
+    m_impl->m_swapchain, m_impl->g_timeout,
+    signalOnAcquire.m_impl->m_semaphore, nullptr
+  );
   if (res != vk::Result::eSuccess)
     GRF_PANIC("Failed to get next swapchain image: {}", vk::to_string(res));
   return SwapchainImage(m_impl->m_swapchainImages[index]);
+}
+
+void GRF::present(const SwapchainImage& image, std::span<const Semaphore> waits) {
+  std::vector<vk::Semaphore> waitSemaphores;
+  waitSemaphores.reserve(waits.size());
+  for (const auto& s : waits)
+    waitSemaphores.push_back(s.m_impl->m_semaphore);
+
+  uint32_t index = image.m_impl->m_index;
+
+  auto res = m_impl->m_graphicsQueue.queue.presentKHR(vk::PresentInfoKHR{
+    .waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size()),
+    .pWaitSemaphores    = waitSemaphores.data(),
+    .swapchainCount     = 1,
+    .pSwapchains        = &m_impl->m_swapchain,
+    .pImageIndices      = &index
+  });
+
+  if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR)
+    GRF_PANIC("Failed to present swapchain image: {}", vk::to_string(res));
 }
 
 void GRF::waitForResourceUpdates() {
@@ -595,6 +618,16 @@ void GRF::waitFences(const std::vector<Fence>& fences) {
 
   if (m_impl->m_device.waitForFences(f, true, m_impl->g_timeout) != vk::Result::eSuccess)
     GRF_PANIC("Hung waiting for fences");
+}
+
+void GRF::resetFences(const std::vector<Fence>& fences) {
+  if (fences.empty()) return;
+
+  std::vector<vk::Fence> f;
+  for (const auto& fence : fences)
+    f.emplace_back(fence.m_impl->m_fence);
+
+  m_impl->m_device.resetFences(f);
 }
 
 GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {

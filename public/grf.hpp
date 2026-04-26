@@ -26,8 +26,10 @@ public:
   bool running(std::function<bool()> endCond = [](){ return false; }) const;
   std::pair<uint32_t, double> beginFrame();
   void waitForResourceUpdates();
-  SwapchainImage nextSwapchainImage();
+  SwapchainImage nextSwapchainImage(const Semaphore& signalOnAcquire);
+  void present(const SwapchainImage&, std::span<const Semaphore> waits = {});
   void waitFences(const std::vector<Fence>&);
+  void resetFences(const std::vector<Fence>&);
   void endFrame();
 
   Shader compileShader(ShaderType, const std::string&);

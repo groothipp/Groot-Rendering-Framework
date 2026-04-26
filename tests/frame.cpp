@@ -75,8 +75,9 @@ TEST_CASE("frame: beginFrame reports non-zero delta after work", "[frame]") {
 
 TEST_CASE("frame: nextSwapchainImage returns without crashing", "[frame]") {
   grf::GRF grf;
+  grf::Semaphore acquired = grf.createSemaphore();
   grf.beginFrame();
-  grf::SwapchainImage image = grf.nextSwapchainImage();
+  grf::SwapchainImage image = grf.nextSwapchainImage(acquired);
   SUCCEED();
 }
 

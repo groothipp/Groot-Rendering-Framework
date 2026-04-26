@@ -329,7 +329,8 @@ void GRF::Impl::createSwapchain() {
   const bool storageSupported = static_cast<bool>(usage & vk::ImageUsageFlagBits::eStorage);
 
   auto imgs = m_device.getSwapchainImagesKHR(m_swapchain);
-  for (const auto& img : imgs) {
+  for (uint32_t i = 0; i < imgs.size(); ++i) {
+    const auto& img = imgs[i];
     auto view = m_device.createImageView(vk::ImageViewCreateInfo{
       .image    = img,
       .viewType = vk::ImageViewType::e2D,
@@ -345,7 +346,7 @@ void GRF::Impl::createSwapchain() {
     if (storageSupported)
       heapIndex = m_descriptorHeap->addImg2DStorageOnly(view);
 
-    m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view, heapIndex));
+    m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view, i, heapIndex));
   }
 }
 
