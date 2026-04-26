@@ -16,6 +16,7 @@ class Image;
 class Buffer {
   friend class Allocator;
   friend class ResourceManager;
+  friend class CommandBuffer;
   friend struct BufferUpdateInfo;
 
   class Impl;
@@ -63,6 +64,7 @@ private:
 
 class Img2D {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Image> m_img;
 
@@ -80,6 +82,7 @@ private:
 
 class Img3D {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Image> m_img;
 
@@ -97,6 +100,7 @@ private:
 
 class Tex2D {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Image> m_img;
 
@@ -114,6 +118,7 @@ private:
 
 class Tex3D {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Image> m_img;
 
@@ -131,6 +136,7 @@ private:
 
 class Cubemap {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Image> m_img;
 
@@ -148,6 +154,7 @@ private:
 
 class DepthImage {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Image> m_img;
 
@@ -164,6 +171,7 @@ private:
 class Sampler {
   friend class Allocator;
   friend class GRF;
+  friend class CommandBuffer;
   friend class DescriptorHeap;
 
   class Impl;
@@ -185,6 +193,7 @@ private:
 
 class SwapchainImage {
   friend class GRF;
+  friend class CommandBuffer;
 
   class Impl;
   std::shared_ptr<Impl> m_impl;

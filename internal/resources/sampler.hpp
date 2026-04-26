@@ -3,6 +3,7 @@
 #include "public/resources.hpp"
 #include "public/types.hpp"
 
+#include <array>
 #include <memory>
 #include <vulkan/vulkan.hpp>
 
@@ -17,7 +18,8 @@ public:
   uint64_t                m_id = 0xFFFFFFFFFFFFFFFF;
   vk::Sampler             m_sampler = nullptr;
   uint32_t                m_index = 0xFFFFFFFF;
-  uint64_t                m_lastUseFrame = 0;
+  uint32_t                m_binding = 0xFFFFFFFF;
+  std::array<uint64_t, 3> m_lastUseValues = { 0, 0, 0 };
 
   vk::Filter              m_magFilter = vk::Filter::eLinear;
   vk::Filter              m_minFilter = vk::Filter::eLinear;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "./cmd.hpp"
 #include "./pipelines.hpp"
 #include "./resources.hpp"
 #include "./ring.hpp"
@@ -49,6 +50,14 @@ public:
   Semaphore createSemaphore();
   Ring<Fence> createFenceRing(bool signaled = false);
   Ring<Semaphore> createSemaphoreRing();
+
+  Ring<CommandBuffer> createCmdRing(QueueType);
+  void submit(
+    const CommandBuffer&,
+    std::span<const Semaphore> waits = {},
+    std::span<const Semaphore> signals = {},
+    std::optional<Fence> signalFence = std::nullopt
+  );
 };
 
 ImageData readImage(const std::string&);

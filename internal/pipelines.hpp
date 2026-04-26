@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <vulkan/vulkan.hpp>
 
@@ -13,7 +15,7 @@ public:
 
   vk::PipelineLayout  m_layout = nullptr;
   vk::Pipeline        m_pipeline = nullptr;
-  uint64_t            m_lastUseFrame = 0;
+  std::array<uint64_t, 3> m_lastUseValues = { 0, 0, 0 };
 
 public:
   Pipeline(std::weak_ptr<ResourceManager>, vk::PipelineLayout, vk::Pipeline);

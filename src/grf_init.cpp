@@ -308,6 +308,8 @@ void GRF::Impl::createSwapchain() {
   if (caps.supportedUsageFlags & vk::ImageUsageFlagBits::eStorage)
     usage |= vk::ImageUsageFlagBits::eStorage;
 
+  m_swapchainExtent = chosenExtent;
+
   m_swapchain = m_device.createSwapchainKHR(vk::SwapchainCreateInfoKHR{
     .surface          = m_surface,
     .minImageCount    = imageCount,
@@ -347,8 +349,32 @@ void GRF::Impl::createSwapchain() {
   }
 }
 
+void GRF::Impl::createTimelineSemaphores() {
+  for (Queue * q : { &m_graphicsQueue, &m_computeQueue, &m_transferQueue }) {
+    vk::SemaphoreTypeCreateInfo type{
+      .semaphoreType = vk::SemaphoreType::eTimeline,
+      .initialValue  = 0
+    };
+    q->timeline = m_device.createSemaphore(vk::SemaphoreCreateInfo{ .pNext = &type });
+    q->nextValue = 1;
+  }
+}
+
+void GRF::Impl::createCommandPools() {
+  std::array<uint32_t, 3> indices = {
+    m_graphicsQueue.index, m_computeQueue.index, m_transferQueue.index
+  };
+  for (size_t i = 0; i < 3; ++i) {
+    m_commandPools[i] = m_device.createCommandPool(vk::CommandPoolCreateInfo{
+      .flags            = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+      .queueFamilyIndex = indices[i]
+    });
+  }
+}
+
 void GRF::Impl::createPipelineLayout() {
   auto props = m_gpu.getProperties();
+  m_pushConstantSize = props.limits.maxPushConstantsSize;
 
   const vk::DescriptorSetLayout& setLayout = m_descriptorHeap->layout();
 

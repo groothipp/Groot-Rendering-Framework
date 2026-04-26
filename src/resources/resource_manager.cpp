@@ -7,21 +7,17 @@
 namespace grf {
 
 ResourceManager::ResourceManager(
-  std::unique_ptr<Allocator>& allocator, Queue& transferQueue, vk::Device& device,
-  uint32_t flightFrames
-) : m_allocator(allocator), m_transferQueue(transferQueue), m_device(device),
-    m_flightFrames(flightFrames) {
-  m_bufferUpdateFence = m_device.createFence(vk::FenceCreateInfo{
-    .flags = vk::FenceCreateFlagBits::eSignaled
-  });
-
-  m_imageUpdateFence = m_device.createFence(vk::FenceCreateInfo{
-    .flags = vk::FenceCreateFlagBits::eSignaled
-  });
-
+  std::unique_ptr<Allocator>& allocator,
+  std::unique_ptr<DescriptorHeap>& descriptorHeap,
+  Queue& graphics, Queue& compute, Queue& transfer,
+  vk::Device& device
+) : m_allocator(allocator),
+    m_descriptorHeap(descriptorHeap),
+    m_queues{ &graphics, &compute, &transfer },
+    m_device(device) {
   m_transferPool = m_device.createCommandPool(vk::CommandPoolCreateInfo{
     .flags            = vk::CommandPoolCreateFlagBits::eTransient,
-    .queueFamilyIndex = m_transferQueue.index
+    .queueFamilyIndex = transfer.index
   });
 }
 
@@ -36,12 +32,8 @@ void ResourceManager::destroy() {
 
   drainAll();
 
-  m_device.destroyFence(m_bufferUpdateFence);
-  m_device.destroyFence(m_imageUpdateFence);
   m_device.destroyCommandPool(m_transferPool);
 
-  m_bufferUpdateFence = nullptr;
-  m_imageUpdateFence = nullptr;
   m_transferPool = nullptr;
 }
 
@@ -85,9 +77,11 @@ void ResourceManager::beginUpdates() {
 
   if (!m_bufferUpdates.empty()) {
     auto u = std::move(m_bufferUpdates);
+    m_bufferUpdateValue = reserveValue(QueueType::Transfer);
+    uint64_t v = m_bufferUpdateValue;
     m_bufferUpdateFuture = std::async(std::launch::async,
-      [this, u = std::move(u)]() mutable {
-        updateBuffers(std::move(u));
+      [this, u = std::move(u), v]() mutable {
+        updateBuffers(std::move(u), v);
       }
     );
     m_bufferUpdates.clear();
@@ -95,9 +89,11 @@ void ResourceManager::beginUpdates() {
 
   if (!m_imageUpdates.empty()) {
     auto u = std::move(m_imageUpdates);
+    m_imageUpdateValue = reserveValue(QueueType::Transfer);
+    uint64_t v = m_imageUpdateValue;
     m_imageUpdateFuture = std::async(std::launch::async,
-      [this, u = std::move(u)]() mutable {
-        updateImages(std::move(u));
+      [this, u = std::move(u), v]() mutable {
+        updateImages(std::move(u), v);
       }
     );
     m_imageUpdates.clear();
@@ -111,19 +107,33 @@ void ResourceManager::waitForUpdates() {
   if (m_imageUpdateFuture.valid())
     m_imageUpdateFuture.get();
 
-  if (m_device.waitForFences({ m_bufferUpdateFence, m_imageUpdateFence }, true, g_resourceFenceTimeout) != vk::Result::eSuccess)
-    GRF_PANIC("Hung waiting for resource updates");
+  uint64_t maxValue = std::max(m_bufferUpdateValue, m_imageUpdateValue);
+  if (maxValue > 0) {
+    vk::Semaphore timeline = m_queues[static_cast<size_t>(QueueType::Transfer)]->timeline;
+    vk::SemaphoreWaitInfo waitInfo{
+      .semaphoreCount = 1,
+      .pSemaphores    = &timeline,
+      .pValues        = &maxValue
+    };
+    if (m_device.waitSemaphores(waitInfo, g_resourceFenceTimeout) != vk::Result::eSuccess)
+      GRF_PANIC("Hung waiting for resource updates");
+  }
 
   m_allocator->destroyStagingBuffers();
-  m_device.freeCommandBuffers(m_transferPool, { m_bufferCmd, m_imageCmd });
+  if (m_bufferCmd != nullptr || m_imageCmd != nullptr) {
+    std::vector<vk::CommandBuffer> bufs;
+    if (m_bufferCmd != nullptr) bufs.push_back(m_bufferCmd);
+    if (m_imageCmd  != nullptr) bufs.push_back(m_imageCmd);
+    m_device.freeCommandBuffers(m_transferPool, bufs);
+  }
 
   m_bufferCmd = nullptr;
   m_imageCmd = nullptr;
+  m_bufferUpdateValue = 0;
+  m_imageUpdateValue = 0;
 }
 
-void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos) {
-  m_device.resetFences(m_bufferUpdateFence);
-
+void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos, uint64_t value) {
   m_bufferCmd = m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo{
     .commandPool        = m_transferPool,
     .level              = vk::CommandBufferLevel::ePrimary,
@@ -133,7 +143,7 @@ void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos) {
   m_bufferCmd.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
   for (const auto& info : infos) {
-    info.buf->m_lastUseFrame = m_currentFrame;
+    info.buf->m_lastUseValues[static_cast<size_t>(QueueType::Transfer)] = value;
 
     auto res = m_allocator->writeBuffer(info.buf->m_address, info.data, info.offset);
     if (!res.has_value()) continue;
@@ -149,15 +159,23 @@ void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos) {
 
   m_bufferCmd.end();
 
-  m_transferQueue.queue.submit(vk::SubmitInfo{
-    .commandBufferCount = 1,
-    .pCommandBuffers    = &m_bufferCmd
-  }, m_bufferUpdateFence);
+  Queue* xq = m_queues[static_cast<size_t>(QueueType::Transfer)];
+
+  vk::TimelineSemaphoreSubmitInfo timelineInfo{
+    .signalSemaphoreValueCount = 1,
+    .pSignalSemaphoreValues    = &value
+  };
+
+  xq->queue.submit(vk::SubmitInfo{
+    .pNext                = &timelineInfo,
+    .commandBufferCount   = 1,
+    .pCommandBuffers      = &m_bufferCmd,
+    .signalSemaphoreCount = 1,
+    .pSignalSemaphores    = &xq->timeline
+  });
 }
 
-void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos) {
-  m_device.resetFences(m_imageUpdateFence);
-
+void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t value) {
   m_imageCmd = m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo{
     .commandPool        = m_transferPool,
     .level              = vk::CommandBufferLevel::ePrimary,
@@ -167,7 +185,7 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos) {
   m_imageCmd.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
   for (auto& info: infos) {
-    info.img->m_lastUseFrame = m_currentFrame;
+    info.img->m_lastUseValues[static_cast<size_t>(QueueType::Transfer)] = value;
 
     vk::PipelineStageFlags srcStage;
     vk::AccessFlags        srcAccess;
@@ -243,10 +261,20 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos) {
 
   m_imageCmd.end();
 
-  m_transferQueue.queue.submit(vk::SubmitInfo{
-    .commandBufferCount = 1,
-    .pCommandBuffers    = &m_imageCmd
-  }, m_imageUpdateFence);
+  Queue* xq = m_queues[static_cast<size_t>(QueueType::Transfer)];
+
+  vk::TimelineSemaphoreSubmitInfo timelineInfo{
+    .signalSemaphoreValueCount = 1,
+    .pSignalSemaphoreValues    = &value
+  };
+
+  xq->queue.submit(vk::SubmitInfo{
+    .pNext                = &timelineInfo,
+    .commandBufferCount   = 1,
+    .pCommandBuffers      = &m_imageCmd,
+    .signalSemaphoreCount = 1,
+    .pSignalSemaphores    = &xq->timeline
+  });
 }
 
 void ResourceManager::scheduleDestruction(const Grave& grave) {
@@ -254,24 +282,58 @@ void ResourceManager::scheduleDestruction(const Grave& grave) {
   m_graveyard.emplace_back(grave);
 }
 
+bool ResourceManager::readyToDrain(
+  const std::array<uint64_t, 3>& retire,
+  const std::array<uint64_t, 3>& current
+) const {
+  for (size_t q = 0; q < 3; ++q)
+    if (retire[q] > current[q]) return false;
+  return true;
+}
+
+void ResourceManager::executeDrain(const Grave& grave) {
+  switch (grave.kind) {
+    case ResourceKind::Buffer:
+      m_allocator->destroyBuffer(grave);
+      break;
+    case ResourceKind::Image:
+      m_allocator->destroyImage(grave);
+      m_descriptorHeap->releaseSlot(grave.storageBinding, grave.storageSlot);
+      m_descriptorHeap->releaseSlot(grave.sampledBinding, grave.sampledSlot);
+      break;
+    case ResourceKind::Sampler:
+      m_allocator->destroySampler(grave);
+      m_descriptorHeap->releaseSlot(grave.sampledBinding, grave.sampledSlot);
+      break;
+    case ResourceKind::Pipeline:
+      m_device.destroyPipeline(grave.pipeline);
+      break;
+    case ResourceKind::Fence:
+      m_device.destroyFence(grave.fence);
+      break;
+    case ResourceKind::Semaphore:
+      m_device.destroySemaphore(grave.semaphore);
+      break;
+    case ResourceKind::CommandBuffer:
+      m_device.freeCommandBuffers(grave.commandPool, { grave.commandBuffer });
+      break;
+  }
+}
+
 void ResourceManager::drain() {
+  auto current = currentTimelineValues();
+
   std::vector<Grave> ready;
   {
     std::lock_guard<std::mutex> g(m_graveyardMutex);
     auto it = std::partition(m_graveyard.begin(), m_graveyard.end(),
-      [this](const Grave& gr) { return gr.retireAt > m_currentFrame; });
+      [this, &current](const Grave& gr) { return !readyToDrain(gr.retireValues, current); });
     ready.assign(std::make_move_iterator(it), std::make_move_iterator(m_graveyard.end()));
     m_graveyard.erase(it, m_graveyard.end());
   }
 
-  for (const auto& grave : ready) {
-    switch (grave.kind) {
-      case ResourceKind::Buffer:   m_allocator->destroyBuffer(grave); break;
-      case ResourceKind::Image:    m_allocator->destroyImage(grave); break;
-      case ResourceKind::Sampler:  m_allocator->destroySampler(grave); break;
-      case ResourceKind::Pipeline: m_device.destroyPipeline(grave.pipeline); break;
-    }
-  }
+  for (const auto& grave : ready)
+    executeDrain(grave);
 }
 
 void ResourceManager::drainAll() {
@@ -282,26 +344,33 @@ void ResourceManager::drainAll() {
     m_graveyard.clear();
   }
 
-  for (const auto& grave : ready) {
-    switch (grave.kind) {
-      case ResourceKind::Buffer:   m_allocator->destroyBuffer(grave); break;
-      case ResourceKind::Image:    m_allocator->destroyImage(grave); break;
-      case ResourceKind::Sampler:  m_allocator->destroySampler(grave); break;
-      case ResourceKind::Pipeline: m_device.destroyPipeline(grave.pipeline); break;
-    }
-  }
+  for (const auto& grave : ready)
+    executeDrain(grave);
 }
 
-uint64_t ResourceManager::currentFrame() const {
-  return m_currentFrame;
+uint64_t ResourceManager::reserveValue(QueueType qt) {
+  Queue* q = m_queues[static_cast<size_t>(qt)];
+  return q->nextValue++;
 }
 
-uint32_t ResourceManager::flightFrames() const {
-  return m_flightFrames;
+void ResourceManager::signalTimeline(QueueType qt, uint64_t value) {
+  Queue* q = m_queues[static_cast<size_t>(qt)];
+  vk::SemaphoreSignalInfo info{
+    .semaphore = q->timeline,
+    .value     = value
+  };
+  m_device.signalSemaphore(info);
 }
 
-void ResourceManager::advanceFrame() {
-  ++m_currentFrame;
+Queue& ResourceManager::queue(QueueType qt) {
+  return *m_queues[static_cast<size_t>(qt)];
+}
+
+std::array<uint64_t, 3> ResourceManager::currentTimelineValues() {
+  std::array<uint64_t, 3> values = { 0, 0, 0 };
+  for (size_t q = 0; q < 3; ++q)
+    values[q] = m_device.getSemaphoreCounterValue(m_queues[q]->timeline);
+  return values;
 }
 
 }

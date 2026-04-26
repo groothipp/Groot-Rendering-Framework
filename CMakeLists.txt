@@ -28,6 +28,7 @@ set(GRF_PUBLIC_INCL_DIR ${CMAKE_SOURCE_DIR}/public)
 set(GRF_INTERNAL_INCL_DIR ${CMAKE_SOURCE_DIR}/internal)
 
 set(GRF_PUBLIC_HEADERS
+  ${GRF_PUBLIC_INCL_DIR}/cmd.hpp
   ${GRF_PUBLIC_INCL_DIR}/grf.hpp
   ${GRF_PUBLIC_INCL_DIR}/pipelines.hpp
   ${GRF_PUBLIC_INCL_DIR}/resources.hpp
@@ -50,7 +51,9 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/resources/sampler.hpp
 
   ${GRF_INTERNAL_INCL_DIR}/allocator.hpp
+  ${GRF_INTERNAL_INCL_DIR}/cmd.hpp
   ${GRF_INTERNAL_INCL_DIR}/descriptor_heap.hpp
+  ${GRF_INTERNAL_INCL_DIR}/graveyard.hpp
   ${GRF_INTERNAL_INCL_DIR}/grf.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
   ${GRF_INTERNAL_INCL_DIR}/pipelines.hpp
@@ -68,6 +71,7 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/resources/resource_manager.cpp
 
   ${GRF_SOURCE_DIR}/allocator.cpp
+  ${GRF_SOURCE_DIR}/cmd.cpp
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/grf.cpp
   ${GRF_SOURCE_DIR}/grf_init.cpp
@@ -133,6 +137,7 @@ if(GRF_MAKE_TESTS)
   set(TEST_SOURCES
     ${TEST_SOURCE_DIR}/allocation.cpp
     ${TEST_SOURCE_DIR}/assembler.cpp
+    ${TEST_SOURCE_DIR}/cmd.cpp
     ${TEST_SOURCE_DIR}/destruction.cpp
     ${TEST_SOURCE_DIR}/frame.cpp
     ${TEST_SOURCE_DIR}/lexer.cpp

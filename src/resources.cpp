@@ -69,11 +69,11 @@ Buffer::Impl::~Impl() {
   if (rm == nullptr) return;
 
   rm->scheduleDestruction(Grave{
-    .kind       = ResourceKind::Buffer,
-    .retireAt   = m_lastUseFrame + rm->flightFrames(),
-    .buffer     = m_buffer,
-    .allocation = m_allocation,
-    .address    = m_address
+    .kind         = ResourceKind::Buffer,
+    .retireValues = m_lastUseValues,
+    .buffer       = m_buffer,
+    .allocation   = m_allocation,
+    .address      = m_address
   });
 }
 
@@ -94,12 +94,16 @@ Image::~Image() {
   if (rm == nullptr) return;
 
   rm->scheduleDestruction(Grave{
-    .kind       = ResourceKind::Image,
-    .retireAt   = m_lastUseFrame + rm->flightFrames(),
-    .image      = m_image,
-    .view       = m_view,
-    .allocation = m_allocation,
-    .imageId    = m_id
+    .kind           = ResourceKind::Image,
+    .retireValues   = m_lastUseValues,
+    .image          = m_image,
+    .view           = m_view,
+    .allocation     = m_allocation,
+    .imageId        = m_id,
+    .storageBinding = m_storageBinding,
+    .storageSlot    = m_heapIndexStorage,
+    .sampledBinding = m_sampledBinding,
+    .sampledSlot    = m_heapIndexSampled
   });
 }
 
@@ -320,10 +324,12 @@ Sampler::Impl::~Impl() {
   if (rm == nullptr) return;
 
   rm->scheduleDestruction(Grave{
-    .kind       = ResourceKind::Sampler,
-    .retireAt   = m_lastUseFrame + rm->flightFrames(),
-    .sampler    = m_sampler,
-    .samplerId  = m_id
+    .kind           = ResourceKind::Sampler,
+    .retireValues   = m_lastUseValues,
+    .sampler        = m_sampler,
+    .samplerId      = m_id,
+    .sampledBinding = m_binding,
+    .sampledSlot    = m_index
   });
 }
 

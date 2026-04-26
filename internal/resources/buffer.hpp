@@ -5,6 +5,7 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.hpp>
 
+#include <array>
 #include <memory>
 
 namespace grf {
@@ -20,7 +21,7 @@ public:
   vk::DeviceAddress m_address = 0x0;
   vk::DeviceSize    m_size = 0;
   BufferIntent      m_intent = BufferIntent::FrequentUpdate;
-  uint64_t          m_lastUseFrame = 0;
+  std::array<uint64_t, 3> m_lastUseValues = { 0, 0, 0 };
 
 public:
   Impl(

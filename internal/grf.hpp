@@ -18,8 +18,6 @@ namespace grf {
 
 class GRF::Impl {
 public:
-  using FenceMap = std::unordered_map<uint64_t, std::shared_ptr<Fence::Impl>>;
-  using SemaphoreMap = std::unordered_map<uint64_t, std::shared_ptr<Semaphore::Impl>>;
   using SwapchainImages = std::vector<std::shared_ptr<SwapchainImage::Impl>>;
   using Clock = std::chrono::high_resolution_clock;
   using TimePoint = Clock::time_point;
@@ -44,13 +42,12 @@ public:
   std::shared_ptr<ResourceManager>  m_resourceManager = nullptr;
 
   vk::SwapchainKHR                  m_swapchain = nullptr;
+  vk::Extent2D                      m_swapchainExtent;
   SwapchainImages                   m_swapchainImages;
-
-  FenceMap                          m_fences;
-  SemaphoreMap                      m_semaphores;
-  uint64_t                          m_nextSyncIndex = 0;
+  uint32_t                          m_pushConstantSize = 0;
 
   vk::PipelineLayout                m_pipelineLayout = nullptr;
+  std::array<vk::CommandPool, 3>    m_commandPools = { nullptr, nullptr, nullptr };
 
   uint64_t                          m_frameIndex = 0;
   TimePoint                         m_startTime;
@@ -69,6 +66,8 @@ private:
   void createDevice(std::vector<const char *>&);
   void createSwapchain();
   void createPipelineLayout();
+  void createTimelineSemaphores();
+  void createCommandPools();
 };
 
 }

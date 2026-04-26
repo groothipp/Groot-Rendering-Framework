@@ -8,6 +8,7 @@
 namespace grf {
 
 class DescriptorHeap {
+public:
   static constexpr uint32_t g_tex2DBinding = 0;
   static constexpr uint32_t g_tex3DBinding = 1;
   static constexpr uint32_t g_cubemapBinding = 2;
@@ -15,6 +16,7 @@ class DescriptorHeap {
   static constexpr uint32_t g_img3DBinding = 4;
   static constexpr uint32_t g_samplerBinding = 5;
 
+private:
   vk::Device& m_device;
 
   vk::DescriptorSetLayout m_layout = nullptr;
@@ -23,6 +25,7 @@ class DescriptorHeap {
 
   std::array<uint32_t, 6> m_maxVal = { 0 };
   std::array<uint32_t, 6> m_nextIndex = { 0 };
+  std::array<std::vector<uint32_t>, 6> m_freeSlots;
 
 public:
   DescriptorHeap(const vk::PhysicalDevice&, vk::Device&);
@@ -40,7 +43,10 @@ public:
   void addSampler(std::shared_ptr<Sampler::Impl>);
   uint32_t addImg2DStorageOnly(vk::ImageView);
 
+  void releaseSlot(uint32_t binding, uint32_t slot);
+
 private:
+  uint32_t acquireSlot(uint32_t binding);
   void createLayout(uint32_t, uint32_t, uint32_t);
   void createPool(uint32_t, uint32_t, uint32_t);
 };

@@ -2,6 +2,7 @@
 #include "public/types.hpp"
 
 #include "internal/allocator.hpp"
+#include "internal/cmd.hpp"
 #include "internal/descriptor_heap.hpp"
 #include "internal/grf.hpp"
 #include "internal/log.hpp"
@@ -58,7 +59,6 @@ void GRF::waitForResourceUpdates() {
 void GRF::endFrame() {
   m_impl->m_frameIndex = (m_impl->m_frameIndex + 1) % m_impl->m_settings.flightFrames;
   m_impl->m_endTime = GRF::Impl::Clock::now();
-  m_impl->m_resourceManager->advanceFrame();
   m_impl->m_resourceManager->drain();
 }
 
@@ -468,24 +468,20 @@ ComputePipeline GRF::createComputePipeline(Shader shader) {
 
 Fence GRF::createFence(bool signaled) {
   auto impl = std::make_shared<Fence::Impl>(
-    m_impl->m_nextSyncIndex,
+    std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
     m_impl->m_device.createFence(vk::FenceCreateInfo{
       .flags = signaled ? vk::FenceCreateFlagBits::eSignaled : vk::FenceCreateFlags()
     })
   );
-
-  m_impl->m_fences[m_impl->m_nextSyncIndex++] = impl;
 
   return Fence(impl);
 }
 
 Semaphore GRF::createSemaphore() {
   auto impl = std::make_shared<Semaphore::Impl>(
-    m_impl->m_nextSyncIndex,
+    std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
     m_impl->m_device.createSemaphore({})
   );
-
-  m_impl->m_semaphores[m_impl->m_nextSyncIndex++] = impl;
 
   return Semaphore(impl);
 }
@@ -506,6 +502,85 @@ Ring<Semaphore> GRF::createSemaphoreRing() {
     ring.m_objs.emplace_back(createSemaphore());
 
   return ring;
+}
+
+Ring<CommandBuffer> GRF::createCmdRing(QueueType qt) {
+  auto ring = Ring<CommandBuffer>(m_impl->m_settings.flightFrames);
+
+  vk::CommandPool pool = m_impl->m_commandPools[static_cast<size_t>(qt)];
+
+  std::vector<vk::CommandBuffer> buffers = m_impl->m_device.allocateCommandBuffers(
+    vk::CommandBufferAllocateInfo{
+      .commandPool        = pool,
+      .level              = vk::CommandBufferLevel::ePrimary,
+      .commandBufferCount = m_impl->m_settings.flightFrames
+    }
+  );
+
+  for (vk::CommandBuffer buf : buffers) {
+    auto impl = std::make_shared<CommandBuffer::Impl>(
+      std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
+      m_impl->m_device,
+      pool,
+      buf,
+      m_impl->m_pipelineLayout,
+      m_impl->m_descriptorHeap->set(),
+      m_impl->m_swapchainExtent,
+      m_impl->m_pushConstantSize,
+      qt
+    );
+    auto cmd = CommandBuffer(impl);
+    ring.m_objs.push_back(cmd);
+  }
+
+  return ring;
+}
+
+void GRF::submit(
+  const CommandBuffer& cmd,
+  std::span<const Semaphore> waits,
+  std::span<const Semaphore> signals,
+  std::optional<Fence> signalFence
+) {
+  Queue& q = m_impl->m_resourceManager->queue(cmd.m_impl->m_queueType);
+
+  std::vector<vk::Semaphore>          waitSemaphores;
+  std::vector<vk::PipelineStageFlags> waitStages;
+  std::vector<uint64_t>               waitValues;
+  for (const auto& s : waits) {
+    waitSemaphores.push_back(s.m_impl->m_semaphore);
+    waitStages.push_back(vk::PipelineStageFlagBits::eAllCommands);
+    waitValues.push_back(0);
+  }
+
+  std::vector<vk::Semaphore>  signalSemaphores;
+  std::vector<uint64_t>       signalValues;
+  signalSemaphores.push_back(q.timeline);
+  signalValues.push_back(cmd.m_impl->m_reservedValue);
+  for (const auto& s : signals) {
+    signalSemaphores.push_back(s.m_impl->m_semaphore);
+    signalValues.push_back(0);
+  }
+
+  vk::TimelineSemaphoreSubmitInfo timelineInfo{
+    .waitSemaphoreValueCount    = static_cast<uint32_t>(waitValues.size()),
+    .pWaitSemaphoreValues       = waitValues.data(),
+    .signalSemaphoreValueCount  = static_cast<uint32_t>(signalValues.size()),
+    .pSignalSemaphoreValues     = signalValues.data()
+  };
+
+  q.queue.submit(vk::SubmitInfo{
+    .pNext                  = &timelineInfo,
+    .waitSemaphoreCount     = static_cast<uint32_t>(waitSemaphores.size()),
+    .pWaitSemaphores        = waitSemaphores.data(),
+    .pWaitDstStageMask      = waitStages.data(),
+    .commandBufferCount     = 1,
+    .pCommandBuffers        = &cmd.m_impl->m_buffer,
+    .signalSemaphoreCount   = static_cast<uint32_t>(signalSemaphores.size()),
+    .pSignalSemaphores      = signalSemaphores.data()
+  }, signalFence.has_value() ? signalFence->m_impl->m_fence : nullptr);
+
+  cmd.m_impl->m_reservedValue = 0;
 }
 
 void GRF::waitFences(const std::vector<Fence>& fences) {
@@ -544,12 +619,15 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   );
   m_descriptorHeap = std::make_unique<DescriptorHeap>(m_gpu, m_device);
   m_shaderManager = std::make_unique<ShaderManager>(m_device);
+  createTimelineSemaphores();
+
   m_resourceManager = std::make_shared<ResourceManager>(
-    m_allocator, m_transferQueue, m_device, m_settings.flightFrames
+    m_allocator, m_descriptorHeap, m_graphicsQueue, m_computeQueue, m_transferQueue, m_device
   );
 
   createSwapchain();
   createPipelineLayout();
+  createCommandPools();
 
   log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
     std::string(GRF_VERSION),
@@ -563,16 +641,16 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
 GRF::Impl::~Impl() {
   m_device.waitIdle();
 
-  for (auto& [id, fence] : m_fences)
-    m_device.destroyFence(fence->m_fence);
-
-  for (auto& [id, semaphore] : m_semaphores)
-    m_device.destroySemaphore(semaphore->m_semaphore);
-
   m_device.destroyPipelineLayout(m_pipelineLayout);
 
   m_resourceManager->destroy();
   m_resourceManager.reset();
+
+  for (auto& pool : m_commandPools)
+    if (pool != nullptr) m_device.destroyCommandPool(pool);
+
+  for (Queue * q : { &m_graphicsQueue, &m_computeQueue, &m_transferQueue })
+    if (q->timeline != nullptr) m_device.destroySemaphore(q->timeline);
 
   m_shaderManager->destroy();
   m_descriptorHeap->destroy();

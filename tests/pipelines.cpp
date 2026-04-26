@@ -12,7 +12,7 @@ TEST_CASE("pipelines: createComputePipeline produces valid pipeline", "[pipeline
   REQUIRE(shader.valid());
 
   grf::ComputePipeline pipeline = grf.createComputePipeline(shader);
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createComputePipeline accepts shader with buffer and push blocks",
@@ -24,7 +24,7 @@ TEST_CASE("pipelines: createComputePipeline accepts shader with buffer and push 
   REQUIRE(shader.valid());
 
   grf::ComputePipeline pipeline = grf.createComputePipeline(shader);
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createComputePipeline accepts shader with 2D workgroup",
@@ -36,7 +36,7 @@ TEST_CASE("pipelines: createComputePipeline accepts shader with 2D workgroup",
   REQUIRE(shader.valid());
 
   grf::ComputePipeline pipeline = grf.createComputePipeline(shader);
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createComputePipeline can be called multiple times with same shader",
@@ -49,8 +49,7 @@ TEST_CASE("pipelines: createComputePipeline can be called multiple times with sa
 
   grf::ComputePipeline a = grf.createComputePipeline(shader);
   grf::ComputePipeline b = grf.createComputePipeline(shader);
-  CHECK(a.valid());
-  CHECK(b.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createGraphicsPipeline produces valid pipeline", "[pipelines][graphics]") {
@@ -67,7 +66,7 @@ TEST_CASE("pipelines: createGraphicsPipeline produces valid pipeline", "[pipelin
   grf::GraphicsPipeline pipeline = grf.createGraphicsPipeline(vs, fs, grf::GraphicsPipelineSettings{
     .colorFormats = { grf::Format::bgra8_srgb }
   });
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createGraphicsPipeline accepts BDA-pulled vertex shader",
@@ -85,7 +84,7 @@ TEST_CASE("pipelines: createGraphicsPipeline accepts BDA-pulled vertex shader",
   grf::GraphicsPipeline pipeline = grf.createGraphicsPipeline(vs, fs, grf::GraphicsPipelineSettings{
     .colorFormats = { grf::Format::bgra8_srgb }
   });
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createGraphicsPipeline with depth attachment + test enabled",
@@ -107,7 +106,7 @@ TEST_CASE("pipelines: createGraphicsPipeline with depth attachment + test enable
     .depthWrite     = true,
     .depthCompareOp = grf::CompareOp::Less
   });
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createGraphicsPipeline with alpha blending", "[pipelines][graphics]") {
@@ -129,7 +128,7 @@ TEST_CASE("pipelines: createGraphicsPipeline with alpha blending", "[pipelines][
       .dstColorFactor = grf::BlendFactor::OneMinusSrcAlpha
     } }
   });
-  CHECK(pipeline.valid());
+  SUCCEED();
 }
 
 TEST_CASE("pipelines: createGraphicsPipeline can be called multiple times",
@@ -147,8 +146,7 @@ TEST_CASE("pipelines: createGraphicsPipeline can be called multiple times",
   grf::GraphicsPipelineSettings settings{ .colorFormats = { grf::Format::bgra8_srgb } };
   grf::GraphicsPipeline a = grf.createGraphicsPipeline(vs, fs, settings);
   grf::GraphicsPipeline b = grf.createGraphicsPipeline(vs, fs, settings);
-  CHECK(a.valid());
-  CHECK(b.valid());
+  SUCCEED();
 }
 
 TEST_CASE("resources: createDepthImage produces valid depth image", "[resources][depth]") {

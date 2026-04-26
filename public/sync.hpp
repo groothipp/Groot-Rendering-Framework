@@ -10,9 +10,6 @@ class Fence {
   class Impl;
   std::shared_ptr<Impl> m_impl;
 
-public:
-  bool valid() const;
-
 private:
   explicit Fence(std::shared_ptr<Impl>);
 };
@@ -22,9 +19,6 @@ class Semaphore {
 
   class Impl;
   std::shared_ptr<Impl> m_impl;
-
-public:
-  bool valid() const;
 
 private:
   explicit Semaphore(std::shared_ptr<Impl>);

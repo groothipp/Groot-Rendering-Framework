@@ -205,6 +205,17 @@ enum class IndexFormat {
   U32 = 1
 };
 
+enum class LoadOp {
+  Load      = 0,
+  Clear     = 1,
+  DontCare  = 2
+};
+
+enum class StoreOp {
+  Store     = 0,
+  DontCare  = 1
+};
+
 struct Settings {
   std::string                   windowTitle = "GRF Application";
   std::pair<uint32_t, uint32_t> windowSize = { 1280u, 720u };

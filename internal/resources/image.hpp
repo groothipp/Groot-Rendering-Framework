@@ -2,6 +2,7 @@
 
 #include "public/types.hpp"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vk_mem_alloc.h>
@@ -36,10 +37,12 @@ public:
   vk::DeviceSize  m_size = 0;
   uint32_t        m_heapIndexStorage = 0xFFFFFFFF;
   uint32_t        m_heapIndexSampled = 0xFFFFFFFF;
+  uint32_t        m_storageBinding = 0xFFFFFFFF;
+  uint32_t        m_sampledBinding = 0xFFFFFFFF;
   uint32_t        m_width = 0;
   uint32_t        m_height = 0;
   uint32_t        m_depth = 0;
-  uint64_t        m_lastUseFrame = 0;
+  std::array<uint64_t, 3> m_lastUseValues = { 0, 0, 0 };
 
 public:
   Image(std::weak_ptr<ResourceManager>, const ImageInfo&);

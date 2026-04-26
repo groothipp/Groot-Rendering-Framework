@@ -2,26 +2,35 @@
 
 #include "public/sync.hpp"
 
+#include <array>
+#include <cstdint>
+#include <memory>
 #include <vulkan/vulkan.hpp>
 
 namespace grf {
 
+class ResourceManager;
+
 class Fence::Impl {
 public:
-  uint64_t  m_id = 0xFFFFFFFFFFFFFFFF;
-  vk::Fence m_fence = nullptr;
+  std::weak_ptr<ResourceManager>  m_resourceManager;
+  vk::Fence                       m_fence = nullptr;
+  std::array<uint64_t, 3>         m_lastUseValues = { 0, 0, 0 };
 
 public:
-  Impl(uint64_t, vk::Fence);
+  Impl(std::weak_ptr<ResourceManager>, vk::Fence);
+  ~Impl();
 };
 
 class Semaphore::Impl {
 public:
-  uint64_t      m_id = 0xFFFFFFFFFFFFFFFF;
-  vk::Semaphore m_semaphore = nullptr;
+  std::weak_ptr<ResourceManager>  m_resourceManager;
+  vk::Semaphore                   m_semaphore = nullptr;
+  std::array<uint64_t, 3>         m_lastUseValues = { 0, 0, 0 };
 
 public:
-  Impl(uint64_t, vk::Semaphore);
+  Impl(std::weak_ptr<ResourceManager>, vk::Semaphore);
+  ~Impl();
 };
 
 }

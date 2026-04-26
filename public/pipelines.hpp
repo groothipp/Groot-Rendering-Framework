@@ -8,11 +8,9 @@ class Pipeline;
 
 class ComputePipeline {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Pipeline> m_impl;
-
-public:
-  bool valid() const;
 
 private:
   explicit ComputePipeline(std::shared_ptr<Pipeline>);
@@ -20,11 +18,9 @@ private:
 
 class GraphicsPipeline {
   friend class GRF;
+  friend class CommandBuffer;
 
   std::shared_ptr<Pipeline> m_impl;
-
-public:
-  bool valid() const;
 
 private:
   explicit GraphicsPipeline(std::shared_ptr<Pipeline>);
