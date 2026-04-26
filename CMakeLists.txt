@@ -187,6 +187,7 @@ if(GRF_MAKE_TESTS)
 
   target_include_directories(test PRIVATE
     ${CMAKE_SOURCE_DIR}
+    ${IMGUI_DIR}
   )
 
   target_link_libraries(test PRIVATE

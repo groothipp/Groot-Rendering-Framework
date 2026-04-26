@@ -1,5 +1,7 @@
 #include "public/grf.hpp"
 
+#include "imgui.h"
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
@@ -34,7 +36,13 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
   uint64_t       framesRun  = 0;
 
   while (grf.running([&]{ return framesRun >= frameLimit; })) {
-    auto [idx, _] = grf.beginFrame();
+    auto [idx, dt] = grf.beginFrame();
+
+    ImGui::Begin("GRF render test");
+    ImGui::Text("frame: %llu / %llu", framesRun, frameLimit);
+    ImGui::Text("dt: %.3f ms", dt * 1000.0);
+    ImGui::Text("gui wants mouse: %s", grf.gui().wantsMouse() ? "yes" : "no");
+    ImGui::End();
 
     grf.waitFences({ fences[idx] });
     grf.resetFences({ fences[idx] });
@@ -54,6 +62,7 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
     );
     cmds[idx].bindPipeline(pipeline);
     cmds[idx].draw(3);
+    grf.gui().render(cmds[idx]);
     cmds[idx].endRendering();
 
     cmds[idx].transition(swap, grf::Layout::ColorAttachmentOptimal, grf::Layout::PresentSrc);
