@@ -309,6 +309,7 @@ void GRF::Impl::createSwapchain() {
     usage |= vk::ImageUsageFlagBits::eStorage;
 
   m_swapchainExtent = chosenExtent;
+  m_swapchainFormat = chosenFormat.format;
 
   m_swapchain = m_device.createSwapchainKHR(vk::SwapchainCreateInfoKHR{
     .surface          = m_surface,

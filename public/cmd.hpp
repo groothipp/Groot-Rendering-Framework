@@ -36,6 +36,7 @@ using TransitionImage = std::variant<
 
 class CommandBuffer {
   friend class GRF;
+  friend class GUI;
 
   class Impl;
   std::shared_ptr<Impl> m_impl;

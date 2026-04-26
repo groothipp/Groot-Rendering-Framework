@@ -26,6 +26,7 @@ set(GRF_INTERNAL_INCL_DIR ${CMAKE_SOURCE_DIR}/internal)
 set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/cmd.hpp
   ${GRF_PUBLIC_INCL_DIR}/grf.hpp
+  ${GRF_PUBLIC_INCL_DIR}/gui.hpp
   ${GRF_PUBLIC_INCL_DIR}/input.hpp
   ${GRF_PUBLIC_INCL_DIR}/pipelines.hpp
   ${GRF_PUBLIC_INCL_DIR}/resources.hpp
@@ -52,6 +53,7 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/descriptor_heap.hpp
   ${GRF_INTERNAL_INCL_DIR}/graveyard.hpp
   ${GRF_INTERNAL_INCL_DIR}/grf.hpp
+  ${GRF_INTERNAL_INCL_DIR}/gui.hpp
   ${GRF_INTERNAL_INCL_DIR}/input.hpp
   ${GRF_INTERNAL_INCL_DIR}/log.hpp
   ${GRF_INTERNAL_INCL_DIR}/pipelines.hpp
@@ -73,6 +75,7 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/descriptor_heap.cpp
   ${GRF_SOURCE_DIR}/grf.cpp
   ${GRF_SOURCE_DIR}/grf_init.cpp
+  ${GRF_SOURCE_DIR}/gui.cpp
   ${GRF_SOURCE_DIR}/input.cpp
   ${GRF_SOURCE_DIR}/pipelines.cpp
   ${GRF_SOURCE_DIR}/resources.cpp
@@ -80,6 +83,17 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/swapchain_image.cpp
   ${GRF_SOURCE_DIR}/sync.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
+)
+
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+set(IMGUI_SOURCES
+  ${IMGUI_DIR}/imgui.cpp
+  ${IMGUI_DIR}/imgui_demo.cpp
+  ${IMGUI_DIR}/imgui_draw.cpp
+  ${IMGUI_DIR}/imgui_tables.cpp
+  ${IMGUI_DIR}/imgui_widgets.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
 set_source_files_properties(
@@ -92,7 +106,17 @@ set_source_files_properties(
   PROPERTIES COMPILE_FLAGS "-Wno-unused-but-set-variable -Wno-unused-function"
 )
 
-add_library(grf ${GRF_PUBLIC_HEADERS} ${GRF_INTERNAL_HEADERS} ${GRF_SOURCES})
+set_source_files_properties(
+  ${IMGUI_SOURCES}
+  PROPERTIES COMPILE_FLAGS "-Wno-nullability-completeness -Wno-unused-function"
+)
+
+add_library(grf
+  ${GRF_PUBLIC_HEADERS}
+  ${GRF_INTERNAL_HEADERS}
+  ${GRF_SOURCES}
+  ${IMGUI_SOURCES}
+)
 
 target_compile_definitions(grf PRIVATE
   "GRF_VERSION=\"${PROJECT_VERSION}\""
@@ -103,6 +127,8 @@ target_compile_definitions(grf PRIVATE
 target_include_directories(grf
   PRIVATE
     ${CMAKE_SOURCE_DIR}
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
   INTERFACE
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )

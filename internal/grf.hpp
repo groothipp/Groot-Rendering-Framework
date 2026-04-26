@@ -6,6 +6,7 @@
 #include "internal/resources/resource_manager.hpp"
 #include "internal/allocator.hpp"
 #include "internal/descriptor_heap.hpp"
+#include "internal/gui.hpp"
 #include "internal/input.hpp"
 #include "internal/swapchain_image.hpp"
 
@@ -42,9 +43,11 @@ public:
   std::unique_ptr<ShaderManager>    m_shaderManager = nullptr;
   std::shared_ptr<ResourceManager>  m_resourceManager = nullptr;
   std::unique_ptr<Input>            m_input = nullptr;
+  std::unique_ptr<GUI>              m_gui = nullptr;
 
   vk::SwapchainKHR                  m_swapchain = nullptr;
   vk::Extent2D                      m_swapchainExtent;
+  vk::Format                        m_swapchainFormat = vk::Format::eUndefined;
   SwapchainImages                   m_swapchainImages;
   uint32_t                          m_pushConstantSize = 0;
 

@@ -37,6 +37,7 @@ std::pair<uint32_t, double> GRF::beginFrame() {
 
   m_impl->m_input->m_impl->onPollBegin();
   glfwPollEvents();
+  m_impl->m_gui->m_impl->beginFrame();
   m_impl->m_resourceManager->beginUpdates();
 
   double frameTime = GRF::Impl::Duration(m_impl->m_endTime - m_impl->m_startTime).count();
@@ -47,6 +48,10 @@ std::pair<uint32_t, double> GRF::beginFrame() {
 
 Input& GRF::input() {
   return *m_impl->m_input;
+}
+
+GUI& GRF::gui() {
+  return *m_impl->m_gui;
 }
 
 SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
@@ -669,6 +674,16 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
 
   m_input = std::unique_ptr<Input>(new Input(std::make_unique<Input::Impl>(m_window)));
 
+  m_gui = std::unique_ptr<GUI>(new GUI(std::make_unique<GUI::Impl>(
+    m_window,
+    m_instance,
+    m_gpu,
+    m_device,
+    m_graphicsQueue,
+    m_swapchainFormat,
+    static_cast<uint32_t>(m_swapchainImages.size())
+  )));
+
   log::generic("Groot Rendering Framework {}\nvulkan {}.{}.{} on {}",
     std::string(GRF_VERSION),
     VK_VERSION_MAJOR(properties.apiVersion),
@@ -680,6 +695,8 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
 
 GRF::Impl::~Impl() {
   m_device.waitIdle();
+
+  m_gui.reset();
 
   m_device.destroyPipelineLayout(m_pipelineLayout);
 

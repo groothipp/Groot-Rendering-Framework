@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./cmd.hpp"
+#include "./gui.hpp"
 #include "./input.hpp"
 #include "./pipelines.hpp"
 #include "./resources.hpp"
@@ -29,6 +30,7 @@ public:
   void waitForResourceUpdates();
 
   Input& input();
+  GUI&   gui();
   SwapchainImage nextSwapchainImage(const Semaphore& signalOnAcquire);
   void present(const SwapchainImage&, std::span<const Semaphore> waits = {});
   void waitFences(const std::vector<Fence>&);
