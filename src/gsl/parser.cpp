@@ -1,3 +1,4 @@
+#include "internal/gsl/lexer.hpp"
 #include "internal/gsl/parser.hpp"
 #include "internal/log.hpp"
 
@@ -14,6 +15,31 @@ bool isTrivia(Token k) {
       || k == Token::Newline
       || k == Token::LineComment
       || k == Token::BlockComment;
+}
+
+std::vector<std::string_view> extractFieldNames(std::string_view body) {
+  std::vector<std::string_view> names;
+  auto                          tokens = Lexer{body}.tokenize();
+
+  std::vector<std::string_view> idents;
+  std::size_t                   bracketDepth = 0;
+
+  for (const auto& t : tokens) {
+    if (isTrivia(t.token))               continue;
+    if (t.token == Token::EndOfFile)     break;
+    if (t.token == Token::LBrack)        { bracketDepth++; continue; }
+    if (t.token == Token::RBrack)        { if (bracketDepth) bracketDepth--; continue; }
+    if (bracketDepth > 0)                continue;
+
+    if (t.token == Token::Identifier) {
+      idents.push_back(t.source);
+    } else if (t.token == Token::Comma || t.token == Token::Semicolon) {
+      if (!idents.empty()) names.push_back(idents.back());
+      idents.clear();
+    }
+  }
+
+  return names;
 }
 
 }
@@ -161,7 +187,7 @@ ParsedSource Parser::parse() {
 }
 
 BufferDecl Parser::parseBufferDecl() {
-  const TokenData& qualTok  = advance();
+  const TokenData& qualTok   = advance();
   std::string_view qualifier = qualTok.source;
   SourceLoc        declLoc   = qualTok.loc;
 
@@ -169,11 +195,13 @@ BufferDecl Parser::parseBufferDecl() {
   expect(Token::Buffer, "'buffer' after qualifier");
 
   skipTrivia();
-  const TokenData& typeTok = expect(Token::Identifier, "buffer type name");
-  std::string_view typeName = typeTok.source;
-
-  skipTrivia();
-  const TokenData& lbrace = expect(Token::LBrace, "'{' to open buffer body");
+  const TokenData& lbrace = peek();
+  if (lbrace.token != Token::LBrace) {
+    GRF_PANIC("{}:{}:{}: expected '{{' after 'buffer' (named-type form is no longer supported; "
+              "use `buffer {{ ... }} Name;` or `buffer {{ ... }};`), got '{}'",
+              m_sourceName, lbrace.loc.row, lbrace.loc.col, lbrace.source);
+  }
+  advance();
 
   std::size_t depth     = 1;
   std::size_t bodyStart = lbrace.loc.offset + 1;
@@ -203,18 +231,39 @@ BufferDecl Parser::parseBufferDecl() {
   }
   std::string_view body = m_source.substr(bodyStart, bodyEnd - bodyStart);
 
-  skipTrivia();
-  const TokenData& instTok = expect(Token::Identifier, "buffer instance name");
-  std::string_view instanceName = instTok.source;
+  std::size_t bufferIdx = m_bufferCounter++;
+  std::string typeName  = std::format("_GrfBuf_{}", bufferIdx);
 
   skipTrivia();
-  expect(Token::Semicolon, "';' after buffer instance");
+  const TokenData& after = peek();
+
+  std::string                   instanceName;
+  std::vector<std::string_view> fieldNames;
+  bool                          anonymous;
+
+  if (after.token == Token::Identifier) {
+    instanceName = std::string{after.source};
+    anonymous    = false;
+    advance();
+    skipTrivia();
+    expect(Token::Semicolon, "';' after buffer instance");
+  } else if (after.token == Token::Semicolon) {
+    instanceName = std::format("_grfAnonBuf_{}", bufferIdx);
+    fieldNames   = extractFieldNames(body);
+    anonymous    = true;
+    advance();
+  } else {
+    GRF_PANIC("{}:{}:{}: expected instance name or ';' after buffer body, got '{}'",
+              m_sourceName, after.loc.row, after.loc.col, after.source);
+  }
 
   return BufferDecl{
     .qualifier    = qualifier,
-    .typeName     = typeName,
+    .typeName     = std::move(typeName),
     .body         = body,
-    .instanceName = instanceName,
+    .instanceName = std::move(instanceName),
+    .fieldNames   = std::move(fieldNames),
+    .anonymous    = anonymous,
     .loc          = declLoc,
   };
 }

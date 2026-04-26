@@ -55,7 +55,7 @@ TEST_CASE("resource update: span of trivially-copyable data", "[resource-update]
 
   std::vector<uint32_t> data(count);
   for (std::size_t i = 0; i < count; ++i) data[i] = static_cast<uint32_t>(i);
-  buf.write(std::span<const uint32_t>(data));
+  buf.writeRange(std::span<const uint32_t>(data));
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -106,7 +106,7 @@ TEST_CASE("resource update: multiple begin+wait cycles", "[resource-update]") {
   for (int frame = 0; frame < 5; ++frame) {
     for (std::size_t i = 0; i < data.size(); ++i)
       data[i] = static_cast<uint32_t>(frame * 100 + i);
-    buf.write(std::span<const uint32_t>(data));
+    buf.writeRange(std::span<const uint32_t>(data));
 
     grf.beginFrame();
     grf.waitForResourceUpdates();
@@ -129,7 +129,7 @@ TEST_CASE("resource update: many buffers in one flush", "[resource-update]") {
       static_cast<uint32_t>(i + 2),
       static_cast<uint32_t>(i + 3)
     };
-    buffers[i].write(std::span<const uint32_t>(payload));
+    buffers[i].writeRange(std::span<const uint32_t>(payload));
   }
 
   grf.beginFrame();
@@ -166,13 +166,13 @@ TEST_CASE("resource read: span round-trip", "[resource-read]") {
 
   std::vector<uint32_t> written(count);
   for (std::size_t i = 0; i < count; ++i) written[i] = static_cast<uint32_t>(i * 7 + 3);
-  buf.write(std::span<const uint32_t>(written));
+  buf.writeRange(std::span<const uint32_t>(written));
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
 
   std::vector<uint32_t> readBack(count);
-  buf.read(std::span<uint32_t>(readBack));
+  buf.readRange(std::span<uint32_t>(readBack));
   for (std::size_t i = 0; i < count; ++i)
     CHECK(readBack[i] == written[i]);
 }
@@ -184,7 +184,7 @@ TEST_CASE("resource read: non-zero offset", "[resource-read]") {
 
   std::array<uint32_t, count> written{};
   for (std::size_t i = 0; i < count; ++i) written[i] = static_cast<uint32_t>(i + 100);
-  buf.write(std::span<const uint32_t>(written));
+  buf.writeRange(std::span<const uint32_t>(written));
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -201,13 +201,13 @@ TEST_CASE("resource read: partial readback shorter than buffer", "[resource-read
 
   std::vector<uint32_t> written(full);
   for (std::size_t i = 0; i < full; ++i) written[i] = static_cast<uint32_t>(i);
-  buf.write(std::span<const uint32_t>(written));
+  buf.writeRange(std::span<const uint32_t>(written));
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
 
   std::vector<uint32_t> readBack(partial);
-  buf.read(std::span<uint32_t>(readBack));
+  buf.readRange(std::span<uint32_t>(readBack));
   for (std::size_t i = 0; i < partial; ++i)
     CHECK(readBack[i] == written[i]);
 }
@@ -231,12 +231,12 @@ TEST_CASE("resource read: non-readable intent yields zeros", "[resource-read]") 
     const std::size_t count = 8;
     grf::Buffer buf = grf.createBuffer(grf::BufferIntent::FrequentUpdate, sizeof(uint32_t) * count);
     std::array<uint32_t, count> payload{ 1, 2, 3, 4, 5, 6, 7, 8 };
-    buf.write(std::span<const uint32_t>(payload));
+    buf.writeRange(std::span<const uint32_t>(payload));
     grf.beginFrame();
     grf.waitForResourceUpdates();
 
     std::vector<uint32_t> readBack(count);
-    buf.read(std::span<uint32_t>(readBack));
+    buf.readRange(std::span<uint32_t>(readBack));
     for (std::size_t i = 0; i < count; ++i)
       CHECK(readBack[i] == 0u);
   }

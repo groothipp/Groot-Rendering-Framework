@@ -1,11 +1,11 @@
-readonly buffer World {
+readonly buffer {
   mat4 model;
   mat4 view;
   mat4 proj;
-} _World;
+} World;
 
 in vec3 _Position;
 
 void main() {
-  gl_Position = _World.proj * _World.view * vec4(_Position, 1.0);
+  gl_Position = World.proj * World.view * vec4(_Position, 1.0);
 }

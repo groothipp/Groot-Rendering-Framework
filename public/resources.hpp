@@ -35,7 +35,7 @@ public:
   }
 
   template <typename T>
-  void write(std::span<const T> data, std::size_t offset = 0) {
+  void writeRange(std::span<const T> data, std::size_t offset = 0) {
     static_assert(std::is_trivially_copyable_v<T>);
     scheduleWrite(std::as_bytes(data), offset);
   }
@@ -51,7 +51,7 @@ public:
   }
 
   template <typename T>
-  void read(std::span<T> out, std::size_t offset = 0) {
+  void readRange(std::span<T> out, std::size_t offset = 0) {
     static_assert(std::is_trivially_copyable_v<T>);
     retrieveData(std::as_writable_bytes(out), offset);
   }

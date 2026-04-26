@@ -1,4 +1,4 @@
-readonly buffer Vertices {
+readonly buffer {
   vec4 pos[];
 } verts;
 

@@ -14,11 +14,13 @@
 namespace grf::gsl {
 
 struct BufferDecl {
-  std::string_view qualifier;
-  std::string_view typeName;
-  std::string_view body;
-  std::string_view instanceName;
-  SourceLoc        loc;
+  std::string_view              qualifier;
+  std::string                   typeName;       // auto-generated
+  std::string_view              body;
+  std::string                   instanceName;   // user-given (named form) or generated (anonymous form)
+  std::vector<std::string_view> fieldNames;     // populated only for anonymous form
+  bool                          anonymous;      // true → emit #define for each field
+  SourceLoc                     loc;
 };
 
 struct PushBlock {
@@ -54,8 +56,9 @@ class Parser {
   std::span<const TokenData> m_tokens;
   std::string_view           m_source;
   std::string_view           m_sourceName;
-  std::size_t                m_cursor     = 0;
-  int                        m_parenDepth = 0;
+  std::size_t                m_cursor       = 0;
+  int                        m_parenDepth   = 0;
+  std::size_t                m_bufferCounter = 0;
 
 public:
   Parser(std::span<const TokenData> tokens, std::string_view source, std::string_view sourceName = "<shader>");

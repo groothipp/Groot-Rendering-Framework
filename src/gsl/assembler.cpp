@@ -65,6 +65,13 @@ std::string Assembler::assemble() const {
       out += std::format("  {} {};\n", b.typeName, b.instanceName);
     }
     out += "};\n\n";
+
+    for (const auto& b : m_parsed.buffers) {
+      if (!b.anonymous) continue;
+      for (const auto& field : b.fieldNames) {
+        out += std::format("#define {} {}.{}\n", field, b.instanceName, field);
+      }
+    }
   }
 
   uint32_t inLoc = 0;

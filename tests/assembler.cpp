@@ -63,28 +63,28 @@ TEST_CASE("assembler: no buffer decls, no push block emitted", "[gsl][assembler]
 
 TEST_CASE("assembler: readonly buffer rewritten as buffer_reference", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer Vertices { vec3 pos[]; } verts;\n"
+    "readonly buffer { vec3 pos[]; } verts;\n"
     "void main() {}"
   );
-  CHECK(contains(out, "layout(buffer_reference, std430) readonly buffer Vertices"));
+  CHECK(contains(out, "layout(buffer_reference, std430) readonly buffer _GrfBuf_0"));
   CHECK(contains(out, "vec3 pos[];"));
 }
 
 TEST_CASE("assembler: writeonly buffer rewritten as buffer_reference", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "writeonly buffer Output { vec4 colors[]; } results;\n"
+    "writeonly buffer { vec4 colors[]; } results;\n"
     "void main() {}"
   );
-  CHECK(contains(out, "layout(buffer_reference, std430) writeonly buffer Output"));
+  CHECK(contains(out, "layout(buffer_reference, std430) writeonly buffer _GrfBuf_0"));
 }
 
 TEST_CASE("assembler: buffer presence adds buffer-reference field to push block", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer Vertices { vec3 pos[]; } verts;\n"
+    "readonly buffer { vec3 pos[]; } verts;\n"
     "void main() {}"
   );
   CHECK(contains(out, "layout(push_constant, std430) uniform GrfPushBlock"));
-  CHECK(contains(out, "Vertices verts;"));
+  CHECK(contains(out, "_GrfBuf_0 verts;"));
 }
 
 TEST_CASE("assembler: push block uses anonymous instance for global field access", "[gsl][assembler]") {
@@ -102,40 +102,70 @@ TEST_CASE("assembler: push block uses anonymous instance for global field access
 
 TEST_CASE("assembler: user push fields come before auto buffer-reference fields", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer V { int x; } v;\n"
+    "readonly buffer { int x; } v;\n"
     "push { uint idx; };\n"
     "void main() {}"
   );
   auto userFieldPos = indexOf(out, "uint idx;");
-  auto bufFieldPos  = indexOf(out, "V v;");
+  auto bufFieldPos  = indexOf(out, "_GrfBuf_0 v;");
   REQUIRE(userFieldPos != std::string::npos);
   REQUIRE(bufFieldPos  != std::string::npos);
   CHECK(userFieldPos < bufFieldPos);
 }
 
-TEST_CASE("assembler: buffer instance becomes a push-block field directly", "[gsl][assembler]") {
+TEST_CASE("assembler: named buffer instance becomes a push-block field directly", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer Vertices { vec3 pos[]; } verts;\n"
+    "readonly buffer { vec3 pos[]; } verts;\n"
     "void main() {}"
   );
-  CHECK(contains(out, "Vertices verts;"));
+  CHECK(contains(out, "_GrfBuf_0 verts;"));
   CHECK_FALSE(contains(out, "#define"));
   CHECK_FALSE(contains(out, "uint64_t"));
 }
 
-TEST_CASE("assembler: multiple buffers each get their own push-block field", "[gsl][assembler]") {
+TEST_CASE("assembler: anonymous buffer emits #define for each field", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer A { int x; } a;\n"
-    "writeonly buffer B { int y; } b;\n"
+    "readonly buffer { uint frame; float time; };\n"
     "void main() {}"
   );
-  CHECK(contains(out, "A a;"));
-  CHECK(contains(out, "B b;"));
+  CHECK(contains(out, "_GrfBuf_0 _grfAnonBuf_0;"));
+  CHECK(contains(out, "#define frame _grfAnonBuf_0.frame"));
+  CHECK(contains(out, "#define time _grfAnonBuf_0.time"));
+}
+
+TEST_CASE("assembler: anonymous buffer #defines come after the push block", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "readonly buffer { uint count; };\n"
+    "void main() {}"
+  );
+  auto pushEnd    = indexOf(out, "};");
+  auto definePos  = indexOf(out, "#define count");
+  REQUIRE(pushEnd   != std::string::npos);
+  REQUIRE(definePos != std::string::npos);
+  CHECK(pushEnd < definePos);
+}
+
+TEST_CASE("assembler: named buffer does not emit #defines", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "readonly buffer { uint frame; } meta;\n"
+    "void main() {}"
+  );
+  CHECK_FALSE(contains(out, "#define frame"));
+}
+
+TEST_CASE("assembler: multiple buffers each get their own push-block field", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "readonly buffer { int x; } a;\n"
+    "writeonly buffer { int y; } b;\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "_GrfBuf_0 a;"));
+  CHECK(contains(out, "_GrfBuf_1 b;"));
 }
 
 TEST_CASE("assembler: user body appears after framework prelude", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer V { int x; } v;\n"
+    "readonly buffer { int x; } v;\n"
     "void main() { int y = 0; }"
   );
   auto pushBlockPos = indexOf(out, "uniform GrfPushBlock");
@@ -147,7 +177,7 @@ TEST_CASE("assembler: user body appears after framework prelude", "[gsl][assembl
 
 TEST_CASE("assembler: parser's #line directives preserved in body", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer V {\n"
+    "readonly buffer {\n"
     "  int x;\n"
     "} v;\n"
     "void main() {}",
@@ -202,16 +232,16 @@ TEST_CASE("assembler: no thread_group means no local_size layout", "[gsl][assemb
 
 TEST_CASE("assembler: full integration - buffer + push + body", "[gsl][assembler]") {
   auto out = assembleFrom(
-    "readonly buffer Vertices { vec3 pos[]; } verts;\n"
+    "readonly buffer { vec3 pos[]; } verts;\n"
     "push { uint idx; };\n"
     "void main() { gl_Position = vec4(verts.pos[idx], 1.0); }"
   );
 
   CHECK(contains(out, "#version 460"));
   CHECK(contains(out, "grf_Tex2D[]"));
-  CHECK(contains(out, "layout(buffer_reference, std430) readonly buffer Vertices"));
+  CHECK(contains(out, "layout(buffer_reference, std430) readonly buffer _GrfBuf_0"));
   CHECK(contains(out, "uniform GrfPushBlock"));
   CHECK(contains(out, "uint idx;"));
-  CHECK(contains(out, "Vertices verts;"));
+  CHECK(contains(out, "_GrfBuf_0 verts;"));
   CHECK(contains(out, "gl_Position = vec4(verts.pos[idx], 1.0);"));
 }

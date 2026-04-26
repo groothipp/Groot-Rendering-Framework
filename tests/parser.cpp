@@ -38,25 +38,79 @@ TEST_CASE("parser: pass-through source without triggers", "[gsl][parser]") {
   CHECK(r.body == "#line 1 \"test.gsl\"\nvoid main() { gl_Position = vec4(0.0); }");
 }
 
-TEST_CASE("parser: readonly buffer decl extracted", "[gsl][parser]") {
-  auto r = parse("readonly buffer Vertices { vec3 pos[]; } verts;");
+TEST_CASE("parser: readonly named-instance buffer decl extracted", "[gsl][parser]") {
+  auto r = parse("readonly buffer { vec3 pos[]; } verts;");
   REQUIRE(r.buffers.size() == 1);
 
   const auto& b = r.buffers[0];
   CHECK(b.qualifier    == "readonly");
-  CHECK(b.typeName     == "Vertices");
+  CHECK(b.typeName     == "_GrfBuf_0");
   CHECK(b.body         == " vec3 pos[]; ");
   CHECK(b.instanceName == "verts");
+  CHECK_FALSE(b.anonymous);
+  CHECK(b.fieldNames.empty());
   CHECK(b.loc.row      == 1);
   CHECK(b.loc.col      == 1);
 }
 
-TEST_CASE("parser: writeonly buffer decl extracted", "[gsl][parser]") {
-  auto r = parse("writeonly buffer Output { vec4 colors[]; } results;");
+TEST_CASE("parser: writeonly named-instance buffer decl extracted", "[gsl][parser]") {
+  auto r = parse("writeonly buffer { vec4 colors[]; } results;");
   REQUIRE(r.buffers.size() == 1);
   CHECK(r.buffers[0].qualifier    == "writeonly");
-  CHECK(r.buffers[0].typeName     == "Output");
+  CHECK(r.buffers[0].typeName     == "_GrfBuf_0");
   CHECK(r.buffers[0].instanceName == "results");
+  CHECK_FALSE(r.buffers[0].anonymous);
+}
+
+TEST_CASE("parser: anonymous buffer extracts field names", "[gsl][parser]") {
+  auto r = parse("readonly buffer { uint frame; float time; };");
+  REQUIRE(r.buffers.size() == 1);
+
+  const auto& b = r.buffers[0];
+  CHECK(b.qualifier    == "readonly");
+  CHECK(b.typeName     == "_GrfBuf_0");
+  CHECK(b.instanceName == "_grfAnonBuf_0");
+  CHECK(b.anonymous);
+  REQUIRE(b.fieldNames.size() == 2);
+  CHECK(b.fieldNames[0] == "frame");
+  CHECK(b.fieldNames[1] == "time");
+}
+
+TEST_CASE("parser: anonymous buffer field with array brackets parsed correctly", "[gsl][parser]") {
+  auto r = parse("readonly buffer { vec4 pos[]; mat4 mats[4]; };");
+  REQUIRE(r.buffers.size() == 1);
+
+  const auto& b = r.buffers[0];
+  CHECK(b.anonymous);
+  REQUIRE(b.fieldNames.size() == 2);
+  CHECK(b.fieldNames[0] == "pos");
+  CHECK(b.fieldNames[1] == "mats");
+}
+
+TEST_CASE("parser: anonymous buffer multi-decl line yields all field names", "[gsl][parser]") {
+  auto r = parse("readonly buffer { float a, b, c; };");
+  REQUIRE(r.buffers.size() == 1);
+
+  const auto& b = r.buffers[0];
+  REQUIRE(b.fieldNames.size() == 3);
+  CHECK(b.fieldNames[0] == "a");
+  CHECK(b.fieldNames[1] == "b");
+  CHECK(b.fieldNames[2] == "c");
+}
+
+TEST_CASE("parser: buffer counter increments across decls", "[gsl][parser]") {
+  auto r = parse(
+    "readonly buffer { int x; } a;\n"
+    "readonly buffer { int y; };\n"
+    "writeonly buffer { int z; } c;"
+  );
+  REQUIRE(r.buffers.size() == 3);
+  CHECK(r.buffers[0].typeName     == "_GrfBuf_0");
+  CHECK(r.buffers[0].instanceName == "a");
+  CHECK(r.buffers[1].typeName     == "_GrfBuf_1");
+  CHECK(r.buffers[1].instanceName == "_grfAnonBuf_1");
+  CHECK(r.buffers[2].typeName     == "_GrfBuf_2");
+  CHECK(r.buffers[2].instanceName == "c");
 }
 
 TEST_CASE("parser: push block extracted", "[gsl][parser]") {
@@ -68,8 +122,8 @@ TEST_CASE("parser: push block extracted", "[gsl][parser]") {
 
 TEST_CASE("parser: multiple buffer decls preserved in order", "[gsl][parser]") {
   auto r = parse(
-    "readonly buffer A { int x; } a;\n"
-    "writeonly buffer B { int y; } b;\n"
+    "readonly buffer { int x; } a;\n"
+    "writeonly buffer { int y; } b;\n"
     "void main() {}"
   );
   REQUIRE(r.buffers.size() == 2);
@@ -82,7 +136,7 @@ TEST_CASE("parser: multiple buffer decls preserved in order", "[gsl][parser]") {
 
 TEST_CASE("parser: buffer body preserves inner whitespace and comments", "[gsl][parser]") {
   auto r = parse(
-    "readonly buffer Vertices {\n"
+    "readonly buffer {\n"
     "  // coord data\n"
     "  vec3 pos[];\n"
     "} verts;"
@@ -92,7 +146,7 @@ TEST_CASE("parser: buffer body preserves inner whitespace and comments", "[gsl][
 }
 
 TEST_CASE("parser: nested braces in buffer body balance correctly", "[gsl][parser]") {
-  auto r = parse("readonly buffer X { struct S { int y; } s; } x;");
+  auto r = parse("readonly buffer { struct S { int y; } s; } x;");
   REQUIRE(r.buffers.size() == 1);
   CHECK(r.buffers[0].body         == " struct S { int y; } s; ");
   CHECK(r.buffers[0].instanceName == "x");
@@ -118,7 +172,7 @@ TEST_CASE("parser: leading #line directive always emitted", "[gsl][parser]") {
 
 TEST_CASE("parser: #line directive emitted after a removed trigger", "[gsl][parser]") {
   auto r = parse(
-    "readonly buffer V { int x; } v;\n"
+    "readonly buffer { int x; } v;\n"
     "void main() {}"
   );
   CHECK(contains(r.body, "#line 1 \"test.gsl\""));
@@ -127,7 +181,7 @@ TEST_CASE("parser: #line directive emitted after a removed trigger", "[gsl][pars
 
 TEST_CASE("parser: multi-line trigger removal updates #line correctly", "[gsl][parser]") {
   auto r = parse(
-    "readonly buffer V {\n"
+    "readonly buffer {\n"
     "  int x;\n"
     "} v;\n"
     "void main() {}"
@@ -138,14 +192,14 @@ TEST_CASE("parser: multi-line trigger removal updates #line correctly", "[gsl][p
 }
 
 TEST_CASE("parser: trigger at EOF without trailing content", "[gsl][parser]") {
-  auto r = parse("readonly buffer V { int x; } v;");
+  auto r = parse("readonly buffer { int x; } v;");
   REQUIRE(r.buffers.size() == 1);
   CHECK(r.body == "#line 1 \"test.gsl\"\n");
 }
 
 TEST_CASE("parser: buffer + push + body together", "[gsl][parser]") {
   auto r = parse(
-    "readonly buffer Vertices { vec3 pos[]; } verts;\n"
+    "readonly buffer { vec3 pos[]; } verts;\n"
     "push { uint idx; };\n"
     "void main() { gl_Position = vec4(verts.pos[idx], 1.0); }"
   );
