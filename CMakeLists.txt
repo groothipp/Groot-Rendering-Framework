@@ -1,19 +1,15 @@
 cmake_minimum_required(VERSION 4.3)
 
-option(GRF_DEBUG "compile libgrf with debug flags" ON)
-option(GRF_MAKE_TESTS "compile grf tests" ON)
-
-set(GRF_VERSION_MAJOR 0)
-set(GRF_VERSION_MINOR 0)
-set(GRF_VERSION_PATCH 0)
+option(GRF_DEBUG "compile libgrf with debug flags" OFF)
+option(GRF_MAKE_TESTS "compile grf tests" OFF)
 
 project(GrootRenderingFramework
-  VERSION "${GRF_VERSION_MAJOR}.${GRF_VERSION_MINOR}.${GRF_VERSION_PATCH}"
+  VERSION 1.0.0
   LANGUAGES CXX
 )
 
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 26)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 find_package(Vulkan REQUIRED COMPONENTS shaderc_combined)
 find_package(glfw3 REQUIRED)
@@ -96,14 +92,19 @@ set_source_files_properties(
 add_library(grf ${GRF_PUBLIC_HEADERS} ${GRF_INTERNAL_HEADERS} ${GRF_SOURCES})
 
 target_compile_definitions(grf PRIVATE
-  "GRF_VERSION=\"${GRF_VERSION_MAJOR}.${GRF_VERSION_MINOR}.${GRF_VERSION_PATCH}\""
+  "GRF_VERSION=\"${PROJECT_VERSION}\""
   "VULKAN_HPP_NO_CONSTRUCTORS"
   "GLFW_INCLUDE_NONE"
 )
 
-target_include_directories(grf PRIVATE
-  ${CMAKE_SOURCE_DIR}
+target_include_directories(grf
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}
+  INTERFACE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+
+target_compile_features(grf PUBLIC cxx_std_26)
 
 target_link_libraries(grf PRIVATE
   Vulkan::Vulkan
@@ -164,3 +165,38 @@ if(GRF_MAKE_TESTS)
     Catch2::Catch2WithMain
   )
 endif()
+
+install(TARGETS grf
+  EXPORT grfTargets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(FILES ${GRF_PUBLIC_HEADERS}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/grf
+)
+
+install(EXPORT grfTargets
+  FILE grfTargets.cmake
+  NAMESPACE grf::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/grf
+)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/grfConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/grfConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/grf
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/grfConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/grfConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/grfConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/grf
+)
