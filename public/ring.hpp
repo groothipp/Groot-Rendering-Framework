@@ -11,6 +11,8 @@ class Ring {
   std::vector<T> m_objs;
 
 public:
+  Ring() = default;
+
   T& operator[](uint32_t index) {
     return m_objs[index];
   }
