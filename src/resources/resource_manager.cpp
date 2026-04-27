@@ -15,14 +15,18 @@ ResourceManager::ResourceManager(
     m_descriptorHeap(descriptorHeap),
     m_queues{ &graphics, &compute, &transfer },
     m_device(device) {
-  m_transferPool = m_device.createCommandPool(vk::CommandPoolCreateInfo{
+  m_bufferTransferPool = m_device.createCommandPool(vk::CommandPoolCreateInfo{
+    .flags            = vk::CommandPoolCreateFlagBits::eTransient,
+    .queueFamilyIndex = transfer.index
+  });
+  m_imageTransferPool = m_device.createCommandPool(vk::CommandPoolCreateInfo{
     .flags            = vk::CommandPoolCreateFlagBits::eTransient,
     .queueFamilyIndex = transfer.index
   });
 }
 
 ResourceManager::~ResourceManager() {
-  if (m_transferPool != nullptr)
+  if (m_bufferTransferPool != nullptr)
     destroy();
 }
 
@@ -32,9 +36,11 @@ void ResourceManager::destroy() {
 
   drainAll();
 
-  m_device.destroyCommandPool(m_transferPool);
+  m_device.destroyCommandPool(m_bufferTransferPool);
+  m_device.destroyCommandPool(m_imageTransferPool);
 
-  m_transferPool = nullptr;
+  m_bufferTransferPool = nullptr;
+  m_imageTransferPool = nullptr;
 }
 
 void ResourceManager::writeBuffer(const BufferUpdateInfo& info){
@@ -120,12 +126,10 @@ void ResourceManager::waitForUpdates() {
   }
 
   m_allocator->destroyStagingBuffers();
-  if (m_bufferCmd != nullptr || m_imageCmd != nullptr) {
-    std::vector<vk::CommandBuffer> bufs;
-    if (m_bufferCmd != nullptr) bufs.push_back(m_bufferCmd);
-    if (m_imageCmd  != nullptr) bufs.push_back(m_imageCmd);
-    m_device.freeCommandBuffers(m_transferPool, bufs);
-  }
+  if (m_bufferCmd != nullptr)
+    m_device.freeCommandBuffers(m_bufferTransferPool, { m_bufferCmd });
+  if (m_imageCmd != nullptr)
+    m_device.freeCommandBuffers(m_imageTransferPool,  { m_imageCmd });
 
   m_bufferCmd = nullptr;
   m_imageCmd = nullptr;
@@ -135,7 +139,7 @@ void ResourceManager::waitForUpdates() {
 
 void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos, uint64_t value) {
   m_bufferCmd = m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo{
-    .commandPool        = m_transferPool,
+    .commandPool        = m_bufferTransferPool,
     .level              = vk::CommandBufferLevel::ePrimary,
     .commandBufferCount = 1
   })[0];
@@ -177,7 +181,7 @@ void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos, uint64_
 
 void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t value) {
   m_imageCmd = m_device.allocateCommandBuffers(vk::CommandBufferAllocateInfo{
-    .commandPool        = m_transferPool,
+    .commandPool        = m_imageTransferPool,
     .level              = vk::CommandBufferLevel::ePrimary,
     .commandBufferCount = 1
   })[0];

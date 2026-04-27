@@ -18,6 +18,7 @@ public:
   GUI(GUI&&)                 = delete;
   GUI& operator=(GUI&&)      = delete;
 
+  void beginFrame();
   void render(CommandBuffer&);
 
   bool wantsMouse() const;

@@ -37,7 +37,6 @@ std::pair<uint32_t, double> GRF::beginFrame() {
 
   m_impl->m_input->m_impl->onPollBegin();
   glfwPollEvents();
-  m_impl->m_gui->m_impl->beginFrame();
   m_impl->m_resourceManager->beginUpdates();
 
   double frameTime = GRF::Impl::Duration(m_impl->m_endTime - m_impl->m_startTime).count();
@@ -535,9 +534,13 @@ Ring<Fence> GRF::createFenceRing(bool signaled) {
 }
 
 Ring<Semaphore> GRF::createSemaphoreRing() {
-  auto ring = Ring<Semaphore>(m_impl->m_settings.flightFrames);
+  uint32_t count = std::max(
+    m_impl->m_settings.flightFrames,
+    static_cast<uint32_t>(m_impl->m_swapchainImages.size())
+  );
+  auto ring = Ring<Semaphore>(count);
 
-  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
+  for (uint32_t i = 0; i < count; ++i)
     ring.m_objs.emplace_back(createSemaphore());
 
   return ring;

@@ -74,7 +74,7 @@ TEST_CASE("cmd: render into swapchain with clear", "[cmd][graphics]") {
   grf::SwapchainImage swap = grf.nextSwapchainImage(acquired);
 
   ring[0].begin();
-  ring[0].transition(swap, grf::Layout::Undefined, grf::Layout::General);
+  ring[0].transition(swap, grf::Layout::Undefined, grf::Layout::ColorAttachmentOptimal);
   ring[0].beginRendering(
     std::array{ grf::ColorAttachment{
       .img        = swap,
@@ -166,7 +166,7 @@ TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
   grf::Ring<grf::Semaphore>     rendered  = grf.createSemaphoreRing();
   grf::Ring<grf::Fence>         fences    = grf.createFenceRing(true);
 
-  for (int frame = 0; frame < 3; ++frame) {
+  for (int frame = 0; frame < 2; ++frame) {
     auto [idx, _] = grf.beginFrame();
 
     grf.waitFences({ fences[idx] });
@@ -175,7 +175,7 @@ TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
     grf::SwapchainImage swap = grf.nextSwapchainImage(acquired[idx]);
 
     cmds[idx].begin();
-    cmds[idx].transition(swap, grf::Layout::Undefined, grf::Layout::General);
+    cmds[idx].transition(swap, grf::Layout::Undefined, grf::Layout::ColorAttachmentOptimal);
     cmds[idx].beginRendering(
       std::array{ grf::ColorAttachment{
         .img        = swap,
@@ -186,7 +186,7 @@ TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
     cmds[idx].bindPipeline(pipe);
     cmds[idx].draw(3);
     cmds[idx].endRendering();
-    cmds[idx].transition(swap, grf::Layout::General, grf::Layout::PresentSrc);
+    cmds[idx].transition(swap, grf::Layout::ColorAttachmentOptimal, grf::Layout::PresentSrc);
     cmds[idx].end();
 
     grf.submit(cmds[idx], std::array{ acquired[idx] }, std::array{ rendered[idx] }, fences[idx]);

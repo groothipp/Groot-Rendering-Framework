@@ -39,7 +39,7 @@ struct ImageWriteInfo {
   std::shared_ptr<Image>      img;
   std::span<const std::byte>  data;
   vk::ImageLayout             layout;
-  int32_t                     depth = 1;
+  int32_t                     depth = 0;
   CubeFace                    face = CubeFace::Right;
   bool                        isCubemap = false;
 };
@@ -52,7 +52,8 @@ class ResourceManager {
   std::array<Queue *, 3>              m_queues;
   vk::Device&                         m_device;
 
-  vk::CommandPool                     m_transferPool = nullptr;
+  vk::CommandPool                     m_bufferTransferPool = nullptr;
+  vk::CommandPool                     m_imageTransferPool = nullptr;
   vk::CommandBuffer                   m_bufferCmd = nullptr;
   vk::CommandBuffer                   m_imageCmd = nullptr;
 

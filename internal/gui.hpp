@@ -12,9 +12,9 @@ namespace grf {
 class GUI::Impl {
 public:
   vk::Device         m_device          = nullptr;
-  vk::DescriptorPool m_descriptorPool  = nullptr;
   GLFWwindow *       m_window          = nullptr;
   VkFormat           m_colorFormat     = VK_FORMAT_UNDEFINED;
+  bool               m_inFrame         = false;
 
   Impl(
     GLFWwindow *       window,

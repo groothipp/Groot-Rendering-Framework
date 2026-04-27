@@ -514,6 +514,39 @@ void CommandBuffer::copyBufferToImage(const Buffer& src, const TransitionImage& 
   });
 }
 
+void CommandBuffer::copyImageToBuffer(const TransitionImage& src, const Buffer& dst) {
+  ImageBits    bits   = extractAny(src);
+  vk::Extent3D extent = bits.extent.width != 0 ? bits.extent
+    : vk::Extent3D{ m_impl->m_swapchainExtent.width, m_impl->m_swapchainExtent.height, 1 };
+
+  const auto qIdx = static_cast<size_t>(m_impl->m_queueType);
+  dst.m_impl->m_lastUseValues[qIdx] = std::max(dst.m_impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+  if (bits.impl != nullptr)
+    bits.impl->m_lastUseValues[qIdx] = std::max(bits.impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+
+  vk::BufferImageCopy2 region{
+    .bufferOffset      = 0,
+    .bufferRowLength   = 0,
+    .bufferImageHeight = 0,
+    .imageSubresource  = {
+      .aspectMask     = bits.aspect,
+      .mipLevel       = 0,
+      .baseArrayLayer = 0,
+      .layerCount     = bits.layerCount
+    },
+    .imageOffset = { 0, 0, 0 },
+    .imageExtent = extent
+  };
+
+  m_impl->m_buffer.copyImageToBuffer2(vk::CopyImageToBufferInfo2{
+    .srcImage       = bits.image,
+    .srcImageLayout = bits.currentLayout,
+    .dstBuffer      = dst.m_impl->m_buffer,
+    .regionCount    = 1,
+    .pRegions       = &region
+  });
+}
+
 void CommandBuffer::copyImage(const TransitionImage& src, const TransitionImage& dst) {
   ImageBits sBits = extractAny(src);
   ImageBits dBits = extractAny(dst);

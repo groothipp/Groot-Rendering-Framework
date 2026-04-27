@@ -9,20 +9,6 @@ namespace grf {
 
 namespace {
 
-vk::DescriptorPool createImGuiDescriptorPool(vk::Device device) {
-  constexpr uint32_t kPoolSize = 1024;
-  std::array<vk::DescriptorPoolSize, 1> sizes{{
-    { vk::DescriptorType::eCombinedImageSampler, kPoolSize }
-  }};
-
-  return device.createDescriptorPool(vk::DescriptorPoolCreateInfo{
-    .flags         = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-    .maxSets       = kPoolSize,
-    .poolSizeCount = static_cast<uint32_t>(sizes.size()),
-    .pPoolSizes    = sizes.data()
-  });
-}
-
 void applyGreenBrownStyle() {
   ImGui::StyleColorsDark();
 
@@ -118,8 +104,6 @@ GUI::Impl::Impl(
 
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
-  m_descriptorPool = createImGuiDescriptorPool(device);
-
   m_colorFormat = static_cast<VkFormat>(colorFormat);
 
   ImGui_ImplVulkan_InitInfo info{};
@@ -129,7 +113,7 @@ GUI::Impl::Impl(
   info.Device              = device;
   info.QueueFamily         = graphicsQueue.index;
   info.Queue               = graphicsQueue.queue;
-  info.DescriptorPool      = m_descriptorPool;
+  info.DescriptorPoolSize  = 1024;
   info.MinImageCount       = imageCount;
   info.ImageCount          = imageCount;
   info.PipelineCache       = VK_NULL_HANDLE;
@@ -148,21 +132,31 @@ GUI::Impl::~Impl() {
   ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
-  m_device.destroyDescriptorPool(m_descriptorPool);
 }
 
 void GUI::Impl::beginFrame() {
+  if (m_inFrame) ImGui::EndFrame();
+
   ImGui_ImplVulkan_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
   ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+  m_inFrame = true;
 }
 
 GUI::GUI(std::unique_ptr<Impl> impl) : m_impl(std::move(impl)) {}
 GUI::~GUI() = default;
 
+void GUI::beginFrame() {
+  m_impl->beginFrame();
+}
+
 void GUI::render(CommandBuffer& cmd) {
+  if (!m_impl->m_inFrame) return;
+
   ImGui::Render();
+  m_impl->m_inFrame = false;
+
   ImDrawData* drawData = ImGui::GetDrawData();
   if (drawData == nullptr || drawData->CmdListsCount == 0) return;
   ImGui_ImplVulkan_RenderDrawData(drawData, cmd.m_impl->m_buffer);

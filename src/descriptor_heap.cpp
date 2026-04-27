@@ -187,7 +187,7 @@ void DescriptorHeap::addImg3D(std::shared_ptr<Image> impl) {
       .dstBinding       = g_tex3DBinding,
       .dstArrayElement  = sampledSlot,
       .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .descriptorType   = vk::DescriptorType::eSampledImage,
       .pImageInfo       = &sampledInfo
     }
   };

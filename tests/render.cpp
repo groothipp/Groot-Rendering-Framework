@@ -37,6 +37,7 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
 
   while (grf.running([&]{ return framesRun >= frameLimit; })) {
     auto [idx, dt] = grf.beginFrame();
+    grf.gui().beginFrame();
 
     ImGui::Begin("GRF render test");
     ImGui::Text("frame: %llu / %llu", framesRun, frameLimit);

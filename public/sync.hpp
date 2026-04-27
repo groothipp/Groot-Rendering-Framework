@@ -10,6 +10,9 @@ class Fence {
   class Impl;
   std::shared_ptr<Impl> m_impl;
 
+public:
+  Fence() = default;
+
 private:
   explicit Fence(std::shared_ptr<Impl>);
 };
@@ -19,6 +22,9 @@ class Semaphore {
 
   class Impl;
   std::shared_ptr<Impl> m_impl;
+
+public:
+  Semaphore() = default;
 
 private:
   explicit Semaphore(std::shared_ptr<Impl>);

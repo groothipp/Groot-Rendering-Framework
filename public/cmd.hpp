@@ -43,6 +43,8 @@ class CommandBuffer {
   std::shared_ptr<Impl> m_impl;
 
 public:
+  CommandBuffer() = default;
+
   void begin();
   void end();
 
@@ -88,6 +90,7 @@ public:
                   std::size_t srcOffset = 0,
                   std::size_t dstOffset = 0);
   void copyBufferToImage(const Buffer& src, const TransitionImage& dst);
+  void copyImageToBuffer(const TransitionImage& src, const Buffer& dst);
   void copyImage(const TransitionImage& src, const TransitionImage& dst);
   void blitImage(const TransitionImage& src, const TransitionImage& dst,
                  Filter filter = Filter::Linear);

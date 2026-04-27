@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <ranges>
 #include <span>
 #include <tuple>
 #include <type_traits>
@@ -23,37 +24,38 @@ class Buffer {
   std::shared_ptr<Impl> m_impl;
 
 public:
+  Buffer() = default;
 
   std::size_t size() const;
   BufferIntent intent() const;
   uint64_t address() const;
 
   template <typename T>
+    requires std::is_trivially_copyable_v<T>
+          && (!std::ranges::contiguous_range<T>)
   void write(const T& data, std::size_t offset = 0) {
-    static_assert(std::is_trivially_copyable_v<T>);
     scheduleWrite(std::as_bytes(std::span{&data, 1}), offset);
   }
 
-  template <typename T>
-  void writeRange(std::span<const T> data, std::size_t offset = 0) {
-    static_assert(std::is_trivially_copyable_v<T>);
-    scheduleWrite(std::as_bytes(data), offset);
+  template <std::ranges::contiguous_range R>
+    requires std::is_trivially_copyable_v<std::ranges::range_value_t<R>>
+  void write(R&& data, std::size_t offset = 0) {
+    scheduleWrite(std::as_bytes(std::span{data}), offset);
   }
 
   template <typename T>
+    requires std::is_trivially_copyable_v<T>
   T read(std::size_t offset = 0) {
-    static_assert(std::is_trivially_copyable_v<T>);
-
     T out{};
     retrieveData(std::as_writable_bytes(std::span{&out, 1}), offset);
 
     return out;
   }
 
-  template <typename T>
-  void readRange(std::span<T> out, std::size_t offset = 0) {
-    static_assert(std::is_trivially_copyable_v<T>);
-    retrieveData(std::as_writable_bytes(out), offset);
+  template <std::ranges::contiguous_range R>
+    requires std::is_trivially_copyable_v<std::ranges::range_value_t<R>>
+  void read(R&& out, std::size_t offset = 0) {
+    retrieveData(std::as_writable_bytes(std::span{out}), offset);
   }
 
 private:
@@ -69,6 +71,7 @@ class Img2D {
   std::shared_ptr<Image> m_img;
 
 public:
+  Img2D() = default;
 
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
@@ -87,6 +90,7 @@ class Img3D {
   std::shared_ptr<Image> m_img;
 
 public:
+  Img3D() = default;
 
   std::tuple<uint32_t, uint32_t, uint32_t> dims() const;
   std::size_t size() const;
@@ -105,6 +109,7 @@ class Tex2D {
   std::shared_ptr<Image> m_img;
 
 public:
+  Tex2D() = default;
 
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
@@ -123,6 +128,7 @@ class Tex3D {
   std::shared_ptr<Image> m_img;
 
 public:
+  Tex3D() = default;
 
   std::tuple<uint32_t, uint32_t, uint32_t> dims() const;
   std::size_t size() const;
@@ -141,6 +147,7 @@ class Cubemap {
   std::shared_ptr<Image> m_img;
 
 public:
+  Cubemap() = default;
 
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
@@ -159,6 +166,7 @@ class DepthImage {
   std::shared_ptr<Image> m_img;
 
 public:
+  DepthImage() = default;
 
   std::pair<uint32_t, uint32_t> dims() const;
   Format format() const;
@@ -178,6 +186,7 @@ class Sampler {
   std::shared_ptr<Impl> m_impl;
 
 public:
+  Sampler() = default;
 
   Filter magFilter() const;
   Filter minFilter() const;
@@ -199,6 +208,7 @@ class SwapchainImage {
   std::shared_ptr<Impl> m_impl;
 
 public:
+  SwapchainImage() = default;
   uint32_t heapIndex() const;
 
 private:

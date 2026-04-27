@@ -4,7 +4,6 @@
 
 #include <array>
 #include <cstdint>
-#include <span>
 #include <vector>
 
 namespace {
@@ -55,7 +54,7 @@ TEST_CASE("resource update: span of trivially-copyable data", "[resource-update]
 
   std::vector<uint32_t> data(count);
   for (std::size_t i = 0; i < count; ++i) data[i] = static_cast<uint32_t>(i);
-  buf.writeRange(std::span<const uint32_t>(data));
+  buf.write(data);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -106,7 +105,7 @@ TEST_CASE("resource update: multiple begin+wait cycles", "[resource-update]") {
   for (int frame = 0; frame < 5; ++frame) {
     for (std::size_t i = 0; i < data.size(); ++i)
       data[i] = static_cast<uint32_t>(frame * 100 + i);
-    buf.writeRange(std::span<const uint32_t>(data));
+    buf.write(data);
 
     grf.beginFrame();
     grf.waitForResourceUpdates();
@@ -129,7 +128,7 @@ TEST_CASE("resource update: many buffers in one flush", "[resource-update]") {
       static_cast<uint32_t>(i + 2),
       static_cast<uint32_t>(i + 3)
     };
-    buffers[i].writeRange(std::span<const uint32_t>(payload));
+    buffers[i].write(payload);
   }
 
   grf.beginFrame();
@@ -166,13 +165,13 @@ TEST_CASE("resource read: span round-trip", "[resource-read]") {
 
   std::vector<uint32_t> written(count);
   for (std::size_t i = 0; i < count; ++i) written[i] = static_cast<uint32_t>(i * 7 + 3);
-  buf.writeRange(std::span<const uint32_t>(written));
+  buf.write(written);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
 
   std::vector<uint32_t> readBack(count);
-  buf.readRange(std::span<uint32_t>(readBack));
+  buf.read(readBack);
   for (std::size_t i = 0; i < count; ++i)
     CHECK(readBack[i] == written[i]);
 }
@@ -184,7 +183,7 @@ TEST_CASE("resource read: non-zero offset", "[resource-read]") {
 
   std::array<uint32_t, count> written{};
   for (std::size_t i = 0; i < count; ++i) written[i] = static_cast<uint32_t>(i + 100);
-  buf.writeRange(std::span<const uint32_t>(written));
+  buf.write(written);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -201,13 +200,13 @@ TEST_CASE("resource read: partial readback shorter than buffer", "[resource-read
 
   std::vector<uint32_t> written(full);
   for (std::size_t i = 0; i < full; ++i) written[i] = static_cast<uint32_t>(i);
-  buf.writeRange(std::span<const uint32_t>(written));
+  buf.write(written);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
 
   std::vector<uint32_t> readBack(partial);
-  buf.readRange(std::span<uint32_t>(readBack));
+  buf.read(readBack);
   for (std::size_t i = 0; i < partial; ++i)
     CHECK(readBack[i] == written[i]);
 }
@@ -231,12 +230,12 @@ TEST_CASE("resource read: non-readable intent yields zeros", "[resource-read]") 
     const std::size_t count = 8;
     grf::Buffer buf = grf.createBuffer(grf::BufferIntent::FrequentUpdate, sizeof(uint32_t) * count);
     std::array<uint32_t, count> payload{ 1, 2, 3, 4, 5, 6, 7, 8 };
-    buf.writeRange(std::span<const uint32_t>(payload));
+    buf.write(payload);
     grf.beginFrame();
     grf.waitForResourceUpdates();
 
     std::vector<uint32_t> readBack(count);
-    buf.readRange(std::span<uint32_t>(readBack));
+    buf.read(readBack);
     for (std::size_t i = 0; i < count; ++i)
       CHECK(readBack[i] == 0u);
   }
@@ -249,7 +248,7 @@ TEST_CASE("resource update: tex2D write", "[resource-update][image]") {
   grf::Tex2D tex = grf.createTex2D(grf::Format::rgba8_unorm, width, height);
 
   std::vector<std::byte> pixels(width * height * 4, std::byte{0xAB});
-  tex.write(std::span<const std::byte>(pixels), grf::Layout::ShaderReadOptimal);
+  tex.write(pixels, grf::Layout::ShaderReadOptimal);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -263,7 +262,7 @@ TEST_CASE("resource update: img2D write", "[resource-update][image]") {
   grf::Img2D img = grf.createImg2D(grf::Format::rgba8_unorm, width, height);
 
   std::vector<std::byte> pixels(width * height * 4, std::byte{0xCD});
-  img.write(std::span<const std::byte>(pixels), grf::Layout::General);
+  img.write(pixels, grf::Layout::General);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -281,7 +280,7 @@ TEST_CASE("resource update: tex3D per-slice writes", "[resource-update][image]")
   std::vector<std::byte> sliceData(sliceBytes, std::byte{0x01});
 
   for (uint32_t z = 0; z < depth; ++z)
-    tex.write(z, std::span<const std::byte>(sliceData), grf::Layout::ShaderReadOptimal);
+    tex.write(z, sliceData, grf::Layout::ShaderReadOptimal);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -299,7 +298,7 @@ TEST_CASE("resource update: img3D per-slice writes", "[resource-update][image]")
   std::vector<std::byte> sliceData(sliceBytes, std::byte{0x02});
 
   for (uint32_t z = 0; z < depth; ++z)
-    img.write(z, std::span<const std::byte>(sliceData), grf::Layout::General);
+    img.write(z, sliceData, grf::Layout::General);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -320,7 +319,7 @@ TEST_CASE("resource update: cubemap per-face writes", "[resource-update][image]"
     grf::CubeFace::Top,   grf::CubeFace::Bottom,
     grf::CubeFace::Back,  grf::CubeFace::Front,
   }) {
-    cube.write(face, std::span<const std::byte>(faceData), grf::Layout::ShaderReadOptimal);
+    cube.write(face, faceData, grf::Layout::ShaderReadOptimal);
   }
 
   grf.beginFrame();
@@ -335,7 +334,7 @@ TEST_CASE("resource update: cubemap single face write", "[resource-update][image
   grf::Cubemap cube = grf.createCubemap(grf::Format::rgba8_unorm, width, height);
 
   std::vector<std::byte> faceData(width * height * 4, std::byte{0x42});
-  cube.write(grf::CubeFace::Top, std::span<const std::byte>(faceData), grf::Layout::ShaderReadOptimal);
+  cube.write(grf::CubeFace::Top, faceData, grf::Layout::ShaderReadOptimal);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
@@ -353,11 +352,11 @@ TEST_CASE("resource update: mixed buffer and image writes in one flush", "[resou
 
   grf::Tex2D tex = grf.createTex2D(grf::Format::rgba8_unorm, w, h);
   std::vector<std::byte> texPixels(w * h * 4, std::byte{0x10});
-  tex.write(std::span<const std::byte>(texPixels), grf::Layout::ShaderReadOptimal);
+  tex.write(texPixels, grf::Layout::ShaderReadOptimal);
 
   grf::Img2D img = grf.createImg2D(grf::Format::rgba8_unorm, w, h);
   std::vector<std::byte> imgPixels(w * h * 4, std::byte{0x20});
-  img.write(std::span<const std::byte>(imgPixels), grf::Layout::General);
+  img.write(imgPixels, grf::Layout::General);
 
   grf.beginFrame();
   grf.waitForResourceUpdates();
