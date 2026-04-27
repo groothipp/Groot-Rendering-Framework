@@ -3,6 +3,7 @@
 #include "./cmd.hpp"
 #include "./gui.hpp"
 #include "./input.hpp"
+#include "./math.hpp"
 #include "./pipelines.hpp"
 #include "./profiler.hpp"
 #include "./resources.hpp"

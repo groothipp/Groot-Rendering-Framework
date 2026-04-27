@@ -13,6 +13,9 @@ include(CMakePackageConfigHelpers)
 
 find_package(Vulkan REQUIRED COMPONENTS shaderc_combined)
 find_package(glfw3 REQUIRED)
+find_package(glm REQUIRED)
+
+find_path(GLM_INCLUDE_DIR glm/glm.hpp REQUIRED)
 
 find_library(GLSLANG_LIB NAMES glslang REQUIRED)
 find_library(SPIRV_LIB NAMES SPIRV REQUIRED)
@@ -28,6 +31,7 @@ set(GRF_PUBLIC_HEADERS
   ${GRF_PUBLIC_INCL_DIR}/grf.hpp
   ${GRF_PUBLIC_INCL_DIR}/gui.hpp
   ${GRF_PUBLIC_INCL_DIR}/input.hpp
+  ${GRF_PUBLIC_INCL_DIR}/math.hpp
   ${GRF_PUBLIC_INCL_DIR}/pipelines.hpp
   ${GRF_PUBLIC_INCL_DIR}/profiler.hpp
   ${GRF_PUBLIC_INCL_DIR}/resources.hpp
@@ -99,6 +103,11 @@ set(IMGUI_SOURCES
   ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
+set(IMGUI_PUBLIC_HEADERS
+  ${IMGUI_DIR}/imgui.h
+  ${IMGUI_DIR}/imconfig.h
+)
+
 set_source_files_properties(
   ${GRF_SOURCE_DIR}/vma.cpp
   PROPERTIES COMPILE_FLAGS "-Wno-nullability-completeness"
@@ -127,6 +136,10 @@ target_compile_definitions(grf PRIVATE
   "GLFW_INCLUDE_NONE"
 )
 
+target_compile_definitions(grf PUBLIC
+  "GLM_FORCE_DEPTH_ZERO_TO_ONE"
+)
+
 target_include_directories(grf
   PRIVATE
     ${CMAKE_SOURCE_DIR}
@@ -146,6 +159,7 @@ target_link_libraries(grf PRIVATE
   ${SPIRV_TOOLS_LIB}
   ${SPIRV_TOOLS_OPT_LIB}
   glfw
+  $<BUILD_INTERFACE:glm::glm>
 )
 
 if(GRF_DEBUG)
@@ -208,6 +222,19 @@ install(TARGETS grf
 
 install(FILES ${GRF_PUBLIC_HEADERS}
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/grf
+)
+
+install(FILES ${IMGUI_PUBLIC_HEADERS}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/grf
+)
+
+get_filename_component(GLM_REAL_DIR ${GLM_INCLUDE_DIR}/glm REALPATH)
+install(DIRECTORY ${GLM_REAL_DIR}/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/glm
+  FILES_MATCHING
+    PATTERN "*.hpp"
+    PATTERN "*.h"
+    PATTERN "*.inl"
 )
 
 install(EXPORT grfTargets
