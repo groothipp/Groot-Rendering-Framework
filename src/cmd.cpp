@@ -178,13 +178,22 @@ void CommandBuffer::begin() {
 
   m_impl->m_zoneStack.clear();
 
-  vk::PipelineBindPoint bindPoints[] = {
-    vk::PipelineBindPoint::eGraphics,
-    vk::PipelineBindPoint::eCompute
-  };
-  for (auto bp : bindPoints) {
+  vk::PipelineBindPoint bindPoints[2];
+  uint32_t bindPointCount = 0;
+  switch (m_impl->m_queueType) {
+    case QueueType::Graphics:
+      bindPoints[bindPointCount++] = vk::PipelineBindPoint::eGraphics;
+      bindPoints[bindPointCount++] = vk::PipelineBindPoint::eCompute;
+      break;
+    case QueueType::Compute:
+      bindPoints[bindPointCount++] = vk::PipelineBindPoint::eCompute;
+      break;
+    case QueueType::Transfer:
+      break;
+  }
+  for (uint32_t i = 0; i < bindPointCount; ++i) {
     m_impl->m_buffer.bindDescriptorSets(
-      bp, m_impl->m_pipelineLayout,
+      bindPoints[i], m_impl->m_pipelineLayout,
       0, 1, &m_impl->m_descriptorSet, 0, nullptr
     );
   }
