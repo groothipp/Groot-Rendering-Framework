@@ -27,6 +27,10 @@ std::tuple<uint32_t, uint32_t, uint32_t> parseVersionString(const std::string& v
 }
 
 void GRF::Impl::createWindow() {
+#if defined(__linux__)
+  glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
+#endif
+
   if (!glfwInit()) GRF_PANIC("Failed to initialize GLFW");
 
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
