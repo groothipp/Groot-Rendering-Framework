@@ -13,12 +13,15 @@ namespace grf {
 namespace {
 
 std::tuple<uint32_t, uint32_t, uint32_t> parseVersionString(const std::string& versionString) {
-  std::stringstream ss(versionString, '.');
+  std::stringstream ss(versionString);
+  std::string token;
 
-  uint32_t major, minor, patch;
-  ss >> major >> minor >> patch;
+  uint32_t parts[3] = { 0, 0, 0 };
+  for (size_t i = 0; i < 3 && std::getline(ss, token, '.'); ++i) {
+    parts[i] = static_cast<uint32_t>(std::stoul(token));
+  }
 
-  return { major, minor, patch };
+  return { parts[0], parts[1], parts[2] };
 }
 
 }
@@ -337,10 +340,15 @@ void GRF::Impl::createSwapchain() {
   if (caps.maxImageCount > 0 && imageCount > caps.maxImageCount)
     imageCount = caps.maxImageCount;
 
+  const vk::FormatProperties formatProps = m_gpu.getFormatProperties(chosenFormat.format);
+  const bool formatSupportsStorage = static_cast<bool>(
+    formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eStorageImage
+  );
+
   vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment;
   if (caps.supportedUsageFlags & vk::ImageUsageFlagBits::eTransferDst)
     usage |= vk::ImageUsageFlagBits::eTransferDst;
-  if (caps.supportedUsageFlags & vk::ImageUsageFlagBits::eStorage)
+  if ((caps.supportedUsageFlags & vk::ImageUsageFlagBits::eStorage) && formatSupportsStorage)
     usage |= vk::ImageUsageFlagBits::eStorage;
 
   m_swapchainExtent = chosenExtent;
