@@ -4,7 +4,7 @@ option(GRF_DEBUG "compile libgrf with debug flags" OFF)
 option(GRF_MAKE_TESTS "compile grf tests" OFF)
 
 project(GrootRenderingFramework
-  VERSION 0.7.0
+  VERSION 0.8.0
   LANGUAGES CXX
 )
 
