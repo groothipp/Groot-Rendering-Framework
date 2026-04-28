@@ -28,7 +28,7 @@ public:
   ~GRF();
 
   bool running(std::function<bool()> endCond = [](){ return false; }) const;
-  std::pair<uint32_t, double> beginFrame();
+  std::pair<uint32_t, float> beginFrame();
   void waitForResourceUpdates();
 
   Input&    input();

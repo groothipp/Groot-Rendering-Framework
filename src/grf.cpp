@@ -26,7 +26,7 @@ bool GRF::running(std::function<bool()> endCond) const {
   return !glfwWindowShouldClose(m_impl->m_window) && !endCond();
 }
 
-std::pair<uint32_t, double> GRF::beginFrame() {
+std::pair<uint32_t, float> GRF::beginFrame() {
   auto now = GRF::Impl::Clock::now();
 
   if (m_impl->m_startTime == GRF::Impl::TimePoint{}) [[unlikely]]
@@ -44,7 +44,7 @@ std::pair<uint32_t, double> GRF::beginFrame() {
 
   m_impl->m_profiler->m_impl->beginFrame(frameTime, m_impl->m_frameIndex);
 
-  return { m_impl->m_frameIndex, frameTime };
+  return { m_impl->m_frameIndex, static_cast<float>(frameTime) };
 }
 
 Input& GRF::input() {
