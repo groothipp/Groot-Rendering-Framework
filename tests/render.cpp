@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <cinttypes>
 #include <format>
 
 TEST_CASE("render: full triangle render loop with present", "[render]") {
@@ -40,7 +41,7 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
     grf.gui().beginFrame();
 
     ImGui::Begin("GRF render test");
-    ImGui::Text("frame: %llu / %llu", framesRun, frameLimit);
+    ImGui::Text("frame: %" PRIu64 " / %" PRIu64, framesRun, frameLimit);
     ImGui::Text("dt: %.3f ms", dt * 1000.0);
     ImGui::Text("gui wants mouse: %s", grf.gui().wantsMouse() ? "yes" : "no");
     ImGui::End();
