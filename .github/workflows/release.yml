@@ -1,0 +1,21 @@
+name: Draft Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so generated notes can diff against the previous tag
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
