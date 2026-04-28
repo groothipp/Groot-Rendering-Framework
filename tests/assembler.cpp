@@ -100,7 +100,7 @@ TEST_CASE("assembler: push block uses anonymous instance for global field access
   CHECK_FALSE(contains(out, "} GrfPushBlock"));
 }
 
-TEST_CASE("assembler: user push fields come before auto buffer-reference fields", "[gsl][assembler]") {
+TEST_CASE("assembler: auto buffer-reference fields come before user push fields", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer { int x; } v;\n"
     "push { uint idx; };\n"
@@ -110,7 +110,7 @@ TEST_CASE("assembler: user push fields come before auto buffer-reference fields"
   auto bufFieldPos  = indexOf(out, "_GrfBuf_0 v;");
   REQUIRE(userFieldPos != std::string::npos);
   REQUIRE(bufFieldPos  != std::string::npos);
-  CHECK(userFieldPos < bufFieldPos);
+  CHECK(bufFieldPos < userFieldPos);
 }
 
 TEST_CASE("assembler: named buffer instance becomes a push-block field directly", "[gsl][assembler]") {

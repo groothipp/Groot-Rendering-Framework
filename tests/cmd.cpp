@@ -93,16 +93,33 @@ TEST_CASE("cmd: render into swapchain with clear", "[cmd][graphics]") {
   SUCCEED();
 }
 
-TEST_CASE("cmd: push constants accept span and template", "[cmd][push]") {
+TEST_CASE("cmd: push constants drive a compute copy", "[cmd][push]") {
   grf::GRF grf;
   grf::Shader shader = grf.compileShader(grf::ShaderType::Compute,
     std::format("{}/shaders/compute_buffers.gsl", GRF_TEST_DIR)
   );
   grf::ComputePipeline pipe = grf.createComputePipeline(shader);
 
-  grf::Buffer src = grf.createBuffer(grf::BufferIntent::GPUOnly, 256);
-  grf::Buffer dst = grf.createBuffer(grf::BufferIntent::GPUOnly, 256);
+  constexpr uint32_t kCount = 16;
 
+  grf::Buffer src = grf.createBuffer(grf::BufferIntent::FrequentUpdate,
+                                      sizeof(uint32_t) * kCount);
+  grf::Buffer dst = grf.createBuffer(grf::BufferIntent::Readable,
+                                      sizeof(uint32_t) * kCount);
+
+  std::array<uint32_t, kCount> expected{};
+  for (uint32_t i = 0; i < kCount; ++i) expected[i] = i * 7 + 3;
+  src.write(expected);
+
+  // Flush any queued resource uploads to the GPU.
+  grf.beginFrame();
+  grf.waitForResourceUpdates();
+
+  // The assembler emits GrfPushBlock with buffer references first (in
+  // declaration order), then user `push { }` fields. compute_buffers.gsl
+  // declares `buffer Src;`, `buffer Dst;`, then `push { uint count; }`, so
+  // the push struct is { srcAddr, dstAddr, count } — uint64s naturally
+  // 8-aligned, no manual padding required.
   struct Push {
     uint64_t srcAddr;
     uint64_t dstAddr;
@@ -114,13 +131,19 @@ TEST_CASE("cmd: push constants accept span and template", "[cmd][push]") {
 
   ring[0].begin();
   ring[0].bindPipeline(pipe);
-  ring[0].push(Push{ src.address(), dst.address(), 16 });
+  ring[0].push(Push{ src.address(), dst.address(), kCount });
   ring[0].dispatch(1, 1, 1);
   ring[0].end();
   grf.submit(ring[0], {}, {}, fence);
 
   grf.waitFences({ fence });
-  SUCCEED();
+
+  std::array<uint32_t, kCount> readBack{};
+  dst.read(readBack);
+  for (uint32_t i = 0; i < kCount; ++i)
+    CHECK(readBack[i] == expected[i]);
+
+  grf.endFrame();
 }
 
 TEST_CASE("cmd: queue ownership transfer between graphics and compute", "[cmd][ownership]") {

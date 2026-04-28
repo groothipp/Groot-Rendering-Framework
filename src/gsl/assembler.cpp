@@ -56,13 +56,13 @@ std::string Assembler::assemble() const {
   const bool hasPush = m_parsed.push.has_value() || !m_parsed.buffers.empty();
   if (hasPush) {
     out += "layout(push_constant, std430) uniform GrfPushBlock {\n";
+    for (const auto& b : m_parsed.buffers) {
+      out += std::format("  {} {};\n", b.typeName, b.instanceName);
+    }
     if (m_parsed.push.has_value()) {
       out += m_parsed.push->body;
       if (!m_parsed.push->body.empty() && m_parsed.push->body.back() != '\n')
         out += '\n';
-    }
-    for (const auto& b : m_parsed.buffers) {
-      out += std::format("  {} {};\n", b.typeName, b.instanceName);
     }
     out += "};\n\n";
 
