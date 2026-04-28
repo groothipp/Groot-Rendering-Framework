@@ -47,8 +47,6 @@ Profiler::Impl::Impl(vk::Device device, vk::PhysicalDevice gpu, uint32_t flightF
     .queryCount = kMaxZonesPerFrame * 2 * flightFrames
   });
 
-  m_device.resetQueryPool(m_pool, 0, kMaxZonesPerFrame * 2 * flightFrames);
-
   m_pending.resize(flightFrames);
   m_graphBuffer.resize(kHistoryLength, 0.0f);
 }
@@ -92,7 +90,7 @@ void Profiler::Impl::beginFrame(double dtSeconds, uint32_t frameSlot) {
     }
   }
 
-  m_device.resetQueryPool(m_pool, slotFirstQuery(m_currentSlot), slotQueryCount());
+  m_slotResetPending = true;
   m_pending[m_currentSlot].clear();
   m_zoneCounter = 0;
 

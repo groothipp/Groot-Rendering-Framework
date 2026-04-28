@@ -197,6 +197,18 @@ void CommandBuffer::begin() {
       0, 1, &m_impl->m_descriptorSet, 0, nullptr
     );
   }
+
+  if (
+    m_impl->m_profiler != nullptr             &&
+    m_impl->m_profiler->m_slotResetPending    &&
+    m_impl->m_queueType != QueueType::Transfer
+  ) {
+    const uint32_t slot  = m_impl->m_profiler->m_currentSlot;
+    const uint32_t first = slot * Profiler::Impl::kMaxZonesPerFrame * 2;
+    const uint32_t count = Profiler::Impl::kMaxZonesPerFrame * 2;
+    m_impl->m_buffer.resetQueryPool(m_impl->m_profiler->m_pool, first, count);
+    m_impl->m_profiler->m_slotResetPending = false;
+  }
 }
 
 void CommandBuffer::end() {

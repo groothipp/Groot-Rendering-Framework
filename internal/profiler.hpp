@@ -23,6 +23,7 @@ public:
   uint32_t        m_currentSlot  = 0;
   uint32_t        m_zoneCounter  = 0;
   uint64_t        m_framesElapsed = 0;
+  bool            m_slotResetPending = false;
   double          m_timestampPeriodNs = 1.0;
   uint64_t        m_timestampMask     = ~uint64_t{0};
 
