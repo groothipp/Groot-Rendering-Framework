@@ -125,6 +125,15 @@ enum class Layout {
   PresentSrc              = 1000001002
 };
 
+enum class BufferAccess {
+  ShaderRead,
+  ShaderWrite,
+  TransferRead,
+  TransferWrite,
+  IndirectRead,
+  IndexRead
+};
+
 enum class PresentMode {
   VSync,
   Mailbox,

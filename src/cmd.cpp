@@ -446,6 +446,72 @@ void CommandBuffer::acquire(const TransitionImage& img, Layout from, Layout to, 
   });
 }
 
+void CommandBuffer::barrier() {
+  vk::MemoryBarrier2 mem{
+    .srcStageMask  = vk::PipelineStageFlagBits2::eAllCommands,
+    .srcAccessMask = vk::AccessFlagBits2::eMemoryRead | vk::AccessFlagBits2::eMemoryWrite,
+    .dstStageMask  = vk::PipelineStageFlagBits2::eAllCommands,
+    .dstAccessMask = vk::AccessFlagBits2::eMemoryRead | vk::AccessFlagBits2::eMemoryWrite
+  };
+
+  m_impl->m_buffer.pipelineBarrier2(vk::DependencyInfo{
+    .memoryBarrierCount = 1,
+    .pMemoryBarriers    = &mem
+  });
+}
+
+namespace {
+
+std::pair<vk::PipelineStageFlags2, vk::AccessFlags2> bufferAccessMasks(BufferAccess a) {
+  switch (a) {
+    case BufferAccess::ShaderRead:
+      return {
+        vk::PipelineStageFlagBits2::eAllGraphics | vk::PipelineStageFlagBits2::eComputeShader,
+        vk::AccessFlagBits2::eShaderRead
+      };
+    case BufferAccess::ShaderWrite:
+      return {
+        vk::PipelineStageFlagBits2::eAllGraphics | vk::PipelineStageFlagBits2::eComputeShader,
+        vk::AccessFlagBits2::eShaderWrite
+      };
+    case BufferAccess::TransferRead:
+      return { vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead };
+    case BufferAccess::TransferWrite:
+      return { vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferWrite };
+    case BufferAccess::IndirectRead:
+      return { vk::PipelineStageFlagBits2::eDrawIndirect, vk::AccessFlagBits2::eIndirectCommandRead };
+    case BufferAccess::IndexRead:
+      return { vk::PipelineStageFlagBits2::eIndexInput, vk::AccessFlagBits2::eIndexRead };
+  }
+}
+
+}
+
+void CommandBuffer::barrier(const Buffer& buf, BufferAccess from, BufferAccess to) {
+  const auto qIdx = static_cast<size_t>(m_impl->m_queueType);
+  buf.m_impl->m_lastUseValues[qIdx] = std::max(buf.m_impl->m_lastUseValues[qIdx], m_impl->m_reservedValue);
+
+  auto [srcStage, srcAccess] = bufferAccessMasks(from);
+  auto [dstStage, dstAccess] = bufferAccessMasks(to);
+
+  vk::BufferMemoryBarrier2 bmb{
+    .srcStageMask        = srcStage,
+    .srcAccessMask       = srcAccess,
+    .dstStageMask        = dstStage,
+    .dstAccessMask       = dstAccess,
+    .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+    .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+    .buffer              = buf.m_impl->m_buffer,
+    .offset              = 0,
+    .size                = vk::WholeSize
+  };
+
+  m_impl->m_buffer.pipelineBarrier2(vk::DependencyInfo{
+    .bufferMemoryBarrierCount = 1,
+    .pBufferMemoryBarriers    = &bmb
+  });
+}
+
 void CommandBuffer::copyBuffer(const Buffer& src, const Buffer& dst) {
   std::size_t size = std::min(src.m_impl->m_size, dst.m_impl->m_size);
   copyBuffer(src, dst, size, 0, 0);

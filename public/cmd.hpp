@@ -83,6 +83,8 @@ public:
   void transition(const TransitionImage& img, Layout from, Layout to);
   void release(const TransitionImage& img, Layout from, Layout to, QueueType dstQueue);
   void acquire(const TransitionImage& img, Layout from, Layout to, QueueType srcQueue);
+  void barrier();
+  void barrier(const Buffer& buf, BufferAccess from, BufferAccess to);
 
   void copyBuffer(const Buffer& src, const Buffer& dst);
   void copyBuffer(const Buffer& src, const Buffer& dst,
