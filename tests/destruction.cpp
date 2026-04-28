@@ -190,10 +190,12 @@ TEST_CASE("destruction: sampler heap slot is reclaimed after drain", "[destructi
 TEST_CASE("destruction: img2D reclaims both storage and sampled slots", "[destruction][heap]") {
   grf::GRF grf(grf::Settings{ .flightFrames = 2 });
 
-  uint32_t firstSlot;
+  uint32_t firstSampled;
+  uint32_t firstStorage;
   {
     grf::Img2D img = grf.createImg2D(grf::Format::rgba8_unorm, 32, 32);
-    firstSlot = img.heapIndex();
+    firstSampled = img.sampledHeapIndex();
+    firstStorage = img.storageHeapIndex();
   }
 
   for (int i = 0; i < 4; ++i) {
@@ -202,7 +204,8 @@ TEST_CASE("destruction: img2D reclaims both storage and sampled slots", "[destru
   }
 
   grf::Img2D next = grf.createImg2D(grf::Format::rgba8_unorm, 32, 32);
-  CHECK(next.heapIndex() == firstSlot);
+  CHECK(next.sampledHeapIndex() == firstSampled);
+  CHECK(next.storageHeapIndex() == firstStorage);
 }
 
 TEST_CASE("destruction: free list is LIFO", "[destruction][heap]") {
@@ -284,7 +287,7 @@ TEST_CASE("destruction: ring of img2D reclaims heap slots after drain", "[destru
   {
     grf::Ring<grf::Img2D> ring = grf.createImg2DRing(grf::Format::rgba8_unorm, 32, 32);
     for (uint32_t i = 0; i < 2; ++i)
-      originalSlots.push_back(ring[i].heapIndex());
+      originalSlots.push_back(ring[i].sampledHeapIndex());
   }
 
   for (int i = 0; i < 4; ++i) {
@@ -295,7 +298,7 @@ TEST_CASE("destruction: ring of img2D reclaims heap slots after drain", "[destru
   grf::Img2D fresh1 = grf.createImg2D(grf::Format::rgba8_unorm, 32, 32);
   grf::Img2D fresh2 = grf.createImg2D(grf::Format::rgba8_unorm, 32, 32);
 
-  std::vector<uint32_t> reusedSlots = { fresh1.heapIndex(), fresh2.heapIndex() };
+  std::vector<uint32_t> reusedSlots = { fresh1.sampledHeapIndex(), fresh2.sampledHeapIndex() };
   std::sort(originalSlots.begin(), originalSlots.end());
   std::sort(reusedSlots.begin(), reusedSlots.end());
   CHECK(originalSlots == reusedSlots);

@@ -78,8 +78,9 @@ TEST_CASE("ring: createImg2DRing produces flightFrames distinct images", "[ring]
     CHECK(h == height);
     CHECK(img.format() == format);
 
-    const uint32_t idx = img.heapIndex();
+    const uint32_t idx = img.sampledHeapIndex();
     CHECK(idx != 0xFFFFFFFFu);
+    CHECK(img.storageHeapIndex() != 0xFFFFFFFFu);
     heapIndices.insert(idx);
   }
 
@@ -103,8 +104,9 @@ TEST_CASE("ring: createImg3DRing produces flightFrames distinct images", "[ring]
     CHECK(d == depth);
     CHECK(img.format() == format);
 
-    const uint32_t idx = img.heapIndex();
+    const uint32_t idx = img.sampledHeapIndex();
     CHECK(idx != 0xFFFFFFFFu);
+    CHECK(img.storageHeapIndex() != 0xFFFFFFFFu);
     heapIndices.insert(idx);
   }
 

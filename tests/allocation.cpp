@@ -108,7 +108,8 @@ TEST_CASE( "allocation: img2D", "[allocation][img2D]" ) {
   CHECK( w == width );
   CHECK( h == height );
 
-  CHECK( img.heapIndex() != 0xFFFFFFFF );
+  CHECK( img.sampledHeapIndex() != 0xFFFFFFFF );
+  CHECK( img.storageHeapIndex() != 0xFFFFFFFF );
   CHECK( img.size() != 0 );
   CHECK( img.format() == format );
 }
@@ -128,7 +129,8 @@ TEST_CASE( "allocation: img3D", "[allocation][img3D]" ) {
   CHECK( h == height );
   CHECK( d == depth );
 
-  CHECK( img.heapIndex() != 0xFFFFFFFF );
+  CHECK( img.sampledHeapIndex() != 0xFFFFFFFF );
+  CHECK( img.storageHeapIndex() != 0xFFFFFFFF );
   CHECK( img.size() != 0 );
   CHECK( img.format() == format );
 }

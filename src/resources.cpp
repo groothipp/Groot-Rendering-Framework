@@ -121,8 +121,12 @@ Format Img2D::format() const {
   return static_cast<Format>(m_img->m_format);
 }
 
-uint32_t Img2D::heapIndex() const {
+uint32_t Img2D::sampledHeapIndex() const {
   return m_img->m_heapIndexSampled;
+}
+
+uint32_t Img2D::storageHeapIndex() const {
+  return m_img->m_heapIndexStorage;
 }
 
 void Img2D::write(std::span<const std::byte> data, Layout layout) {
@@ -150,8 +154,12 @@ Format Img3D::format() const {
   return static_cast<Format>(m_img->m_format);
 }
 
-uint32_t Img3D::heapIndex() const {
+uint32_t Img3D::sampledHeapIndex() const {
   return m_img->m_heapIndexSampled;
+}
+
+uint32_t Img3D::storageHeapIndex() const {
+  return m_img->m_heapIndexStorage;
 }
 
 void Img3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {

@@ -76,7 +76,8 @@ public:
   std::pair<uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
-  uint32_t heapIndex() const;
+  uint32_t sampledHeapIndex() const;
+  uint32_t storageHeapIndex() const;
   void write(std::span<const std::byte>, Layout);
 
 private:
@@ -95,7 +96,8 @@ public:
   std::tuple<uint32_t, uint32_t, uint32_t> dims() const;
   std::size_t size() const;
   Format format() const;
-  uint32_t heapIndex() const;
+  uint32_t sampledHeapIndex() const;
+  uint32_t storageHeapIndex() const;
   void write(uint32_t, std::span<const std::byte>, Layout);
 
 private:
