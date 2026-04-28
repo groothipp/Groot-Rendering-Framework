@@ -39,6 +39,8 @@ public:
   Queue                             m_computeQueue;
   Queue                             m_transferQueue;
 
+  bool                              m_rayTracingSupported = false;
+
   std::unique_ptr<Allocator>        m_allocator = nullptr;
   std::unique_ptr<DescriptorHeap>   m_descriptorHeap = nullptr;
   std::unique_ptr<ShaderManager>    m_shaderManager = nullptr;
