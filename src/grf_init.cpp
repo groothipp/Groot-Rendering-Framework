@@ -132,6 +132,23 @@ void GRF::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
     ) continue;
 
     m_gpu = gpu;
+
+    bool hasRTExtensions =
+      extensions.contains(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) &&
+      extensions.contains(VK_KHR_RAY_QUERY_EXTENSION_NAME)              &&
+      extensions.contains(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+
+    if (hasRTExtensions) {
+      auto rtFeatures = gpu.getFeatures2<
+        vk::PhysicalDeviceFeatures2,
+        vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
+        vk::PhysicalDeviceRayQueryFeaturesKHR
+      >();
+      const auto& fAS = rtFeatures.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>();
+      const auto& fRQ = rtFeatures.get<vk::PhysicalDeviceRayQueryFeaturesKHR>();
+      m_rayTracingSupported = fAS.accelerationStructure && fRQ.rayQuery;
+    }
+
     getQueueFamilyIndices();
     break;
   }
@@ -221,7 +238,23 @@ void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
     break;
   }
 
+  if (m_rayTracingSupported) {
+    requiredExtensions.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    requiredExtensions.emplace_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+    requiredExtensions.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+  }
+
+  vk::PhysicalDeviceRayQueryFeaturesKHR fRQ{
+    .rayQuery = true
+  };
+
+  vk::PhysicalDeviceAccelerationStructureFeaturesKHR fAS{
+    .pNext                 = &fRQ,
+    .accelerationStructure = true
+  };
+
   vk::PhysicalDeviceVulkan13Features f13{
+    .pNext            = m_rayTracingSupported ? static_cast<void *>(&fAS) : nullptr,
     .synchronization2 = true,
     .dynamicRendering = true
   };
