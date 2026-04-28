@@ -29,13 +29,17 @@ Profiler::Impl::Impl(vk::Device device, vk::PhysicalDevice gpu, uint32_t flightF
   auto props = gpu.getProperties();
   m_timestampPeriodNs = static_cast<double>(props.limits.timestampPeriod);
 
-  uint32_t validBits = 0;
+  uint32_t validBits = 64;
   auto qfProps = gpu.getQueueFamilyProperties();
   for (const auto& q : qfProps) {
-    if (q.timestampValidBits > validBits) validBits = q.timestampValidBits;
+    if (q.timestampValidBits == 0) continue;
+    if (q.timestampValidBits < validBits) validBits = q.timestampValidBits;
   }
-  if (validBits == 0)
-    GRF_PANIC("GPU does not support timestamp queries");
+  if (validBits == 64) {
+    bool anySupported = false;
+    for (const auto& q : qfProps) if (q.timestampValidBits != 0) anySupported = true;
+    if (!anySupported) GRF_PANIC("GPU does not support timestamp queries");
+  }
   m_timestampMask = (validBits == 64) ? ~uint64_t{0} : ((uint64_t{1} << validBits) - 1);
 
   m_pool = m_device.createQueryPool(vk::QueryPoolCreateInfo{
@@ -75,7 +79,7 @@ void Profiler::Impl::beginFrame(double dtSeconds, uint32_t frameSlot) {
           uint32_t localEnd   = z.endIdx   - first;
           uint64_t b = raw[localBegin] & m_timestampMask;
           uint64_t e = raw[localEnd]   & m_timestampMask;
-          uint64_t ticks = (e >= b) ? (e - b) : 0;
+          uint64_t ticks = (e - b) & m_timestampMask;
           double   ns    = static_cast<double>(ticks) * m_timestampPeriodNs;
           double   ms    = ns / 1e6;
 
