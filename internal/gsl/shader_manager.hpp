@@ -6,6 +6,8 @@
 #include <shaderc/shaderc.hpp>
 #include <vulkan/vulkan.hpp>
 
+#include <array>
+#include <cstdint>
 #include <unordered_map>
 #include <fstream>
 #include <random>
@@ -13,9 +15,10 @@
 namespace grf {
 
 struct CacheRecord {
-  uint64_t mtime = 0;
-  uint64_t size = 0;
-  std::string bin = "";
+  uint64_t                mtime       = 0;
+  uint64_t                size        = 0;
+  std::string             bin         = "";
+  std::array<uint32_t, 3> threadGroup = { 1, 1, 1 };
 };
 
 class ShaderManager {
@@ -41,13 +44,13 @@ public:
 
 private:
   std::string stringify(std::ifstream&) const;
-  std::string getShaderSource(ShaderType, const std::string&, const std::string&) const;
+  std::string getShaderSource(ShaderType, const std::string&, const std::string&, std::array<uint32_t, 3>&) const;
   shaderc_shader_kind shadercType(ShaderType) const;
   std::string generateCacheName();
 
   void loadCache();
   void saveCache();
-  std::vector<uint32_t> codeFromPath(ShaderType, const std::string&);
+  std::vector<uint32_t> codeFromPath(ShaderType, const std::string&, std::array<uint32_t, 3>&);
   std::vector<uint32_t> codeFromCache(const std::string&);
 };
 
