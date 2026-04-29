@@ -130,8 +130,10 @@ int main() {
       .particleCount  = particleCount,
       .dt             = dt
     });
-    if (particleCount > 0)
-      compCmd.dispatch((particleCount + 31) / 32);
+    if (particleCount > 0) {
+      auto [x, y, z] = physicsShader.threadGroup();
+      compCmd.dispatch((particleCount + x - 1) / x);
+    }
 
     compCmd.endProfile();
     compCmd.end();
