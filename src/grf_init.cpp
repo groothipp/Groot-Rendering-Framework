@@ -134,6 +134,7 @@ void GRF::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
       !f12.descriptorBindingPartiallyBound              ||
       !f12.descriptorBindingVariableDescriptorCount     ||
       !f12.hostQueryReset                               ||
+      !f12.shaderSubgroupExtendedTypes                  ||
       !f13.dynamicRendering                             ||
       !f13.synchronization2
     ) continue;
@@ -277,6 +278,7 @@ void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
     .descriptorBindingPartiallyBound              = true,
     .descriptorBindingVariableDescriptorCount     = true,
     .runtimeDescriptorArray                       = true,
+    .shaderSubgroupExtendedTypes                  = true,
     .hostQueryReset                               = true,
     .timelineSemaphore                            = true,
     .bufferDeviceAddress                          = true
