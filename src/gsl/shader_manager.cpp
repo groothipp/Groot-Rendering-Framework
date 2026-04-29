@@ -30,7 +30,7 @@ const vk::ShaderModule& ShaderManager::getModule(const Shader& shader) const {
 Shader ShaderManager::compile(ShaderType type, const std::string& path) {
   if (m_shaders.contains(path)) {
     log::warning("\"{}\" is already compiled", path);
-    return Shader(type, "");
+    return Shader(type, "", { 1, 1, 1 });
   }
 
   if (!std::filesystem::exists(path))
@@ -45,10 +45,17 @@ Shader ShaderManager::compile(ShaderType type, const std::string& path) {
     itr->second.mtime != mtime  ||
     itr->second.size != size;
 
-  std::vector<uint32_t> code = staleCache ? codeFromPath(type, path) : codeFromCache(path);
+  std::array<uint32_t, 3> threadGroup{ 1, 1, 1 };
+  std::vector<uint32_t>   code;
+  if (staleCache) {
+    code = codeFromPath(type, path, threadGroup);
+  } else {
+    threadGroup = itr->second.threadGroup;
+    code        = codeFromCache(path);
+  }
 
   bool corrupted = !staleCache && code.empty();
-  if (corrupted) code = codeFromPath(type, path);
+  if (corrupted) code = codeFromPath(type, path, threadGroup);
 
   if (itr != m_cache.end() && (staleCache || corrupted)) {
     std::string binPath = std::filesystem::path(g_cacheDir) / g_binDir / itr->second.bin;
@@ -69,9 +76,10 @@ Shader ShaderManager::compile(ShaderType type, const std::string& path) {
     file.write(reinterpret_cast<const char *>(code.data()), code.size() * sizeof(uint32_t));
 
     m_cache[path] = CacheRecord{
-      .mtime  = mtime,
-      .size   = size,
-      .bin    = cacheName
+      .mtime        = mtime,
+      .size         = size,
+      .bin          = cacheName,
+      .threadGroup  = threadGroup
     };
   }
 
@@ -79,7 +87,7 @@ Shader ShaderManager::compile(ShaderType type, const std::string& path) {
     std::format("Compiled {}", path) : std::format("Retrieved {} from cache", path);
   log::success("{}", msg);
 
-  return Shader(type, path);
+  return Shader(type, path, threadGroup);
 }
 
 void ShaderManager::destroy() {
@@ -99,12 +107,15 @@ std::string ShaderManager::stringify(std::ifstream& file) const {
   return source;
 }
 
-std::string ShaderManager::getShaderSource(ShaderType type, const std::string& source, const std::string& path) const {
+std::string ShaderManager::getShaderSource(ShaderType type, const std::string& source, const std::string& path, std::array<uint32_t, 3>& threadGroup) const {
   gsl::Lexer lexer(source);
   auto tokens = lexer.tokenize();
 
   gsl::Parser parser(tokens, source, path);
   auto parsed = parser.parse();
+
+  if (parsed.threadGroup.has_value())
+    threadGroup = parsed.threadGroup->dims;
 
   gsl::Assembler assembler(parsed, type);
   return assembler.assemble();
@@ -148,10 +159,14 @@ void ShaderManager::loadCache() {
   if (!j.contains("entries")) return;
 
   for (const auto& [path, record] : j.at("entries").items()) {
+    if (!record.contains("threadGroup")) continue;
+
+    auto tg = record.at("threadGroup");
     m_cache[path] = CacheRecord{
-      .mtime  = record.at("mtime").get<uint64_t>(),
-      .size   = record.at("size").get<uint64_t>(),
-      .bin    = record.at("bin").get<std::string>()
+      .mtime        = record.at("mtime").get<uint64_t>(),
+      .size         = record.at("size").get<uint64_t>(),
+      .bin          = record.at("bin").get<std::string>(),
+      .threadGroup  = { tg.at(0).get<uint32_t>(), tg.at(1).get<uint32_t>(), tg.at(2).get<uint32_t>() }
     };
   }
 }
@@ -161,9 +176,10 @@ void ShaderManager::saveCache() {
   j["version"] = GRF_VERSION;
   for (const auto& [path, record] : m_cache) {
     j["entries"][path] = {
-      { "mtime", record.mtime },
-      { "size", record.size },
-      { "bin", record.bin }
+      { "mtime",       record.mtime },
+      { "size",        record.size },
+      { "bin",         record.bin },
+      { "threadGroup", { record.threadGroup[0], record.threadGroup[1], record.threadGroup[2] } }
     };
   }
 
@@ -172,11 +188,11 @@ void ShaderManager::saveCache() {
   file << j.dump(2);
 }
 
-std::vector<uint32_t> ShaderManager::codeFromPath(ShaderType type, const std::string& path) {
+std::vector<uint32_t> ShaderManager::codeFromPath(ShaderType type, const std::string& path, std::array<uint32_t, 3>& threadGroup) {
   std::ifstream file(path);
 
   std::string source = stringify(file);
-  std::string shaderSource = getShaderSource(type, source, path);
+  std::string shaderSource = getShaderSource(type, source, path, threadGroup);
 
   auto res = m_compiler.CompileGlslToSpv(shaderSource, shadercType(type), path.c_str());
   if (res.GetNumErrors() > 0)
