@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 4.3)
 
 option(GRF_DEBUG "compile libgrf with debug flags" OFF)
-option(GRF_MAKE_TESTS "compile grf tests" OFF)
+option(GRF_TESTS "compile grf tests" OFF)
+option(GRF_EXAMPLES "compile examples" OFF)
 
 project(GrootRenderingFramework
   VERSION 0.8.0
@@ -176,7 +177,7 @@ else()
   target_compile_definitions(grf PRIVATE NDEBUG)
 endif()
 
-if(GRF_MAKE_TESTS)
+if(GRF_TESTS)
   find_package(Catch2 3 REQUIRED)
 
   set(TEST_SOURCE_DIR ${CMAKE_SOURCE_DIR}/tests)
@@ -211,6 +212,12 @@ if(GRF_MAKE_TESTS)
     grf
     Catch2::Catch2WithMain
   )
+endif()
+
+if(GRF_EXAMPLES)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+  set(GRF_EXAMPLES_DIR ${CMAKE_SOURCE_DIR}/examples)
+  add_subdirectory(${GRF_EXAMPLES_DIR}/gravity_particles)
 endif()
 
 install(TARGETS grf

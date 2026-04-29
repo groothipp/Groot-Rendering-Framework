@@ -1,0 +1,49 @@
+readonly buffer {
+  float G;
+  float m;
+  float r;
+} _Constants;
+
+readonly buffer {
+  vec2 _Pos[];
+};
+
+readonly buffer {
+  vec2 _Vel[];
+};
+
+readonly buffer {
+  float _U[];
+};
+
+push {
+  uvec2 _ScreenDims;
+  uint _ParticleCount;
+};
+
+out vec2 _WorldPos;
+
+void main() {
+  const vec2 uvMap[6] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2(-1.0, 1.0),
+    vec2(1.0, 1.0),
+    vec2(1.0, 1.0),
+    vec2(1.0, -1.0),
+    vec2(-1.0, -1.0)
+  );
+  const float renderScale = 2.5;
+  const float ar = float(_ScreenDims.x) / float(_ScreenDims.y);
+
+  const uint j = gl_VertexIndex % 6;
+  const uint i = (gl_VertexIndex - j) / 6;
+
+  vec2 uv = uvMap[j];
+
+  vec2 pos = _Pos[i];
+  vec2 worldPos = _Pos[i] + uv * _Constants.r * renderScale;
+  vec2 clipPos = worldPos * vec2(1.0 / ar, 1.0);
+
+  gl_Position = vec4(clipPos, 0.0, 1.0);
+  _WorldPos = worldPos;
+}
