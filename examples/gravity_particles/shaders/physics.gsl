@@ -1,0 +1,102 @@
+readonly buffer {
+  float G;
+  float m;
+  float r;
+} _Constants;
+
+readonly buffer {
+  vec2 _PrevPos[];
+};
+
+writeonly buffer {
+  vec2 _Pos[];
+};
+
+readonly buffer {
+  vec2 _PrevVel[];
+};
+
+writeonly buffer {
+  vec2 _Vel[];
+};
+
+writeonly buffer {
+  float _U[];
+};
+
+push {
+  uint  _ParticleCount;
+  float _DT;
+};
+
+thread_group [32, 1, 1];
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  if (i >= _ParticleCount) return;
+
+  float phi = 0.0;
+  vec2 a = vec2(0.0);
+  vec2 vBound = vec2(0.0);
+  uint nBound = 0;
+
+  for (int j = 0; j < _ParticleCount; ++j) {
+    if (i == j) continue;
+    const float alpha = _Constants.G * _Constants.m;
+    const float rContact = 4.0 * _Constants.r;
+    const float rMin = 2.0 * _Constants.r;
+
+    vec2 rVec = _PrevPos[j] - _PrevPos[i];
+    float r2 = dot(rVec, rVec) + _Constants.r * _Constants.r;
+    float r = sqrt(r2);
+    vec2 rDir = rVec / r;
+
+    float rReal = length(rVec);
+
+    if (rReal < rMin && rReal > 1e-6) {
+      const float k = 600.0;
+      const float c = 1.71;
+
+      vec2 contactDir = rVec / rReal;
+      float overlap = rMin - rReal;
+
+      a -= k * overlap * contactDir;
+
+      vec2 dv = _PrevVel[j] - _PrevVel[i];
+      float vNorm = dot(dv, contactDir);
+
+      a += c * vNorm * contactDir;
+
+      continue;
+    }
+
+    float phi_ij = alpha / r;
+
+    phi += phi_ij;
+    a += phi_ij / r * rVec;
+
+    if (r > rContact) continue;
+
+    vec2 dv = _PrevVel[j] - _PrevVel[i];
+    float T_ij = 0.25 * _Constants.m * dot(dv, dv);
+    float U_ij = _Constants.m * phi_ij;
+
+    if (T_ij > U_ij) continue;
+
+    vBound += _PrevVel[j];
+    nBound += 1;
+  }
+
+  if (nBound > 0) {
+    const float k = 7.0;
+    vec2 vTarget = vBound / float(nBound);
+    a += k * (vTarget - _PrevVel[i]);
+  }
+
+  vec2 v = _PrevVel[i] + a * _DT;
+  vec2 r = _PrevPos[i] + v * _DT;
+
+  _Pos[i] = r;
+  _Vel[i] = v;
+  _U[i] = _Constants.m * phi;
+}

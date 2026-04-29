@@ -1,0 +1,63 @@
+readonly buffer {
+  float G;
+  float m;
+  float r;
+} _Constants;
+
+readonly buffer {
+  vec2 _Pos[];
+};
+
+readonly buffer {
+  vec2 _Vel[];
+};
+
+readonly buffer {
+  float _U[];
+};
+
+push {
+  uvec2 _ScreenDims;
+  uint _ParticleCount;
+};
+
+in vec2 _WorldPos;
+
+out vec4 _FragColor;
+
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+void main() {
+  const vec3 UCol = vec3(0.0, 0.0, 1.0);
+  const vec3 TCol = vec3(1.0, 0.0, 0.0);
+
+  float blended_sdf = 1e6;
+  float t = 0.0;
+  float totalWeight = 0.0;
+  for (uint i = 0; i < _ParticleCount; ++i) {
+    const float k = 2.0 * _Constants.r;
+
+    float sdf = length(_WorldPos - _Pos[i]) - _Constants.r;
+    blended_sdf = smin(blended_sdf, sdf, k);
+
+    float weight = 1.0 - smoothstep(-_Constants.r, k, sdf);
+
+    float T = 0.5 * _Constants.m * dot(_Vel[i], _Vel[i]);
+    float E = T + _U[i];
+
+    t += weight * _U[i] / E;
+    totalWeight += weight;
+  }
+
+  float aa = fwidth(blended_sdf);
+  float alpha = 1.0 - smoothstep(-aa, aa, blended_sdf);
+  if (alpha < 0.001) discard;
+
+  t = totalWeight > 0.0 ? t / totalWeight : 0.0;
+  vec3 albedo = mix(TCol, UCol, t);
+
+  _FragColor = vec4(albedo, alpha);
+}
