@@ -7,12 +7,14 @@ namespace grf::gsl {
 
 namespace {
 
-constexpr std::string_view kHeader = R"(#version 460
+constexpr std::string_view kPreludeExtensions = R"(#version 460
 #extension GL_EXT_buffer_reference          : require
 #extension GL_EXT_nonuniform_qualifier      : require
 #extension GL_EXT_scalar_block_layout       : require
 #extension GL_EXT_shader_image_load_formatted : require
+)";
 
+constexpr std::string_view kPreludeHeapBindings = R"(
 layout(set = 0, binding = 0) uniform texture2D   grf_Tex2D[];
 layout(set = 0, binding = 1) uniform texture3D   grf_Tex3D[];
 layout(set = 0, binding = 2) uniform textureCube grf_Cubemap[];
@@ -35,9 +37,15 @@ std::string Assembler::assemble() const {
   }
 
   std::string out;
-  out.reserve(kHeader.size() + m_parsed.body.size() + 1024);
+  out.reserve(kPreludeExtensions.size() + kPreludeHeapBindings.size()
+              + m_parsed.body.size() + 1024);
 
-  out += kHeader;
+  out += kPreludeExtensions;
+  for (const auto& ext : m_parsed.extensions) {
+    out += ext;
+    out += '\n';
+  }
+  out += kPreludeHeapBindings;
 
   if (m_parsed.threadGroup.has_value()) {
     const auto& [x, y, z] = m_parsed.threadGroup->dims;
