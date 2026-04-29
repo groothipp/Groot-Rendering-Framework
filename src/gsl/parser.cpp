@@ -17,6 +17,20 @@ bool isTrivia(Token k) {
       || k == Token::BlockComment;
 }
 
+bool isExtensionDirective(std::string_view src) {
+  if (src.empty() || src.front() != '#') return false;
+  std::size_t i = 1;
+  while (i < src.size() && (src[i] == ' ' || src[i] == '\t')) ++i;
+  constexpr std::string_view kw = "extension";
+  if (src.size() - i < kw.size())          return false;
+  if (src.substr(i, kw.size()) != kw)      return false;
+  std::size_t after = i + kw.size();
+  if (after >= src.size())                 return true;
+  char c = src[after];
+  return !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9') || c == '_');
+}
+
 std::vector<std::string_view> extractFieldNames(std::string_view body) {
   std::vector<std::string_view> names;
   auto                          tokens = Lexer{body}.tokenize();
@@ -99,6 +113,14 @@ ParsedSource Parser::parse() {
 
   while (!atEnd()) {
     const TokenData& tok = peek();
+
+    if (tok.token == Token::Preprocessor && isExtensionDirective(tok.source)) {
+      result.extensions.push_back(tok.source);
+      advance();
+      if (!atEnd() && peek().token == Token::Newline) advance();
+      if (!atEnd()) emitLineDirective(result.body, peek().loc.row);
+      continue;
+    }
 
     if (tok.token == Token::Readonly || tok.token == Token::Writeonly) {
       const TokenData* nxt = peekNextNonTrivia();

@@ -220,6 +220,48 @@ TEST_CASE("assembler: interpolation qualifier emitted with layout", "[gsl][assem
   CHECK(contains(out, "layout(location = 0) flat in int materialId;"));
 }
 
+TEST_CASE("assembler: user #extension hoisted into prelude", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "#extension GL_KHR_shader_subgroup_basic : require\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "#extension GL_KHR_shader_subgroup_basic : require"));
+
+  auto userExt  = indexOf(out, "GL_KHR_shader_subgroup_basic");
+  auto fwExt    = indexOf(out, "GL_EXT_shader_image_load_formatted");
+  auto bindings = indexOf(out, "grf_Tex2D[]");
+  REQUIRE(userExt  != std::string::npos);
+  REQUIRE(fwExt    != std::string::npos);
+  REQUIRE(bindings != std::string::npos);
+  CHECK(fwExt    < userExt);
+  CHECK(userExt  < bindings);
+}
+
+TEST_CASE("assembler: multiple user #extension lines preserved in order", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "#extension GL_KHR_shader_subgroup_basic   : require\n"
+    "#extension GL_KHR_shader_subgroup_arithmetic : enable\n"
+    "void main() {}"
+  );
+  auto first  = indexOf(out, "GL_KHR_shader_subgroup_basic");
+  auto second = indexOf(out, "GL_KHR_shader_subgroup_arithmetic");
+  REQUIRE(first  != std::string::npos);
+  REQUIRE(second != std::string::npos);
+  CHECK(first < second);
+}
+
+TEST_CASE("assembler: user #extension stripped from body", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "#extension GL_KHR_shader_subgroup_basic : require\n"
+    "void main() {}"
+  );
+  auto firstHit  = indexOf(out, "GL_KHR_shader_subgroup_basic");
+  auto bindings  = indexOf(out, "grf_Tex2D[]");
+  auto secondHit = out.find("GL_KHR_shader_subgroup_basic", bindings);
+  REQUIRE(firstHit != std::string::npos);
+  CHECK(secondHit == std::string::npos);
+}
+
 TEST_CASE("assembler: thread_group emits local_size layout for compute", "[gsl][assembler]") {
   auto out = assembleFrom("thread_group [8, 4, 2];\nvoid main() {}", ShaderType::Compute);
   CHECK(contains(out, "layout(local_size_x = 8, local_size_y = 4, local_size_z = 2) in;"));

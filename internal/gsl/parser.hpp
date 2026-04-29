@@ -44,12 +44,13 @@ struct StageVar {
 };
 
 struct ParsedSource {
-  std::vector<BufferDecl>    buffers;
-  std::optional<PushBlock>   push;
-  std::optional<ThreadGroup> threadGroup;
-  std::vector<StageVar>      ins;
-  std::vector<StageVar>      outs;
-  std::string                body;
+  std::vector<BufferDecl>       buffers;
+  std::optional<PushBlock>      push;
+  std::optional<ThreadGroup>    threadGroup;
+  std::vector<StageVar>         ins;
+  std::vector<StageVar>         outs;
+  std::vector<std::string_view> extensions;
+  std::string                   body;
 };
 
 class Parser {
