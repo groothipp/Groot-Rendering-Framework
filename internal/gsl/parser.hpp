@@ -14,7 +14,7 @@
 namespace grf::gsl {
 
 struct BufferDecl {
-  std::string_view              qualifier;
+  std::string                   qualifier;      // space-joined: "", "readonly", "readonly coherent", ...
   std::string                   typeName;       // auto-generated
   std::string_view              body;
   std::string                   instanceName;   // user-given (named form) or generated (anonymous form)

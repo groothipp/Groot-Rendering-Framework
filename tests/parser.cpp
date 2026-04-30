@@ -62,6 +62,45 @@ TEST_CASE("parser: writeonly named-instance buffer decl extracted", "[gsl][parse
   CHECK_FALSE(r.buffers[0].anonymous);
 }
 
+TEST_CASE("parser: bare buffer (no qualifier) extracted", "[gsl][parser]") {
+  auto r = parse("buffer { vec3 pos[]; } verts;");
+  REQUIRE(r.buffers.size() == 1);
+  CHECK(r.buffers[0].qualifier    == "");
+  CHECK(r.buffers[0].instanceName == "verts");
+  CHECK(r.buffers[0].loc.row      == 1);
+  CHECK(r.buffers[0].loc.col      == 1);
+}
+
+TEST_CASE("parser: bare anonymous buffer extracted", "[gsl][parser]") {
+  auto r = parse("buffer { uint count; };");
+  REQUIRE(r.buffers.size() == 1);
+  CHECK(r.buffers[0].qualifier == "");
+  CHECK(r.buffers[0].anonymous);
+  REQUIRE(r.buffers[0].fieldNames.size() == 1);
+  CHECK(r.buffers[0].fieldNames[0] == "count");
+}
+
+TEST_CASE("parser: coherent buffer extracted", "[gsl][parser]") {
+  auto r = parse("coherent buffer { uint v[]; } b;");
+  REQUIRE(r.buffers.size() == 1);
+  CHECK(r.buffers[0].qualifier    == "coherent");
+  CHECK(r.buffers[0].instanceName == "b");
+}
+
+TEST_CASE("parser: combined qualifiers preserved in source order", "[gsl][parser]") {
+  auto r = parse("readonly coherent buffer { vec3 pos[]; } verts;");
+  REQUIRE(r.buffers.size() == 1);
+  CHECK(r.buffers[0].qualifier    == "readonly coherent");
+  CHECK(r.buffers[0].instanceName == "verts");
+}
+
+TEST_CASE("parser: coherent as a non-buffer GLSL qualifier passes through", "[gsl][parser]") {
+  auto r = parse("layout(rgba8) coherent image2D img;");
+  CHECK(r.buffers.empty());
+  CHECK(contains(r.body, "coherent"));
+  CHECK(contains(r.body, "image2D"));
+}
+
 TEST_CASE("parser: anonymous buffer extracts field names", "[gsl][parser]") {
   auto r = parse("readonly buffer { uint frame; float time; };");
   REQUIRE(r.buffers.size() == 1);

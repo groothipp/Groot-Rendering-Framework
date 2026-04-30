@@ -17,6 +17,10 @@ bool isTrivia(Token k) {
       || k == Token::BlockComment;
 }
 
+bool isBufferQualifier(Token k) {
+  return k == Token::Readonly || k == Token::Writeonly || k == Token::Coherent;
+}
+
 bool isExtensionDirective(std::string_view src) {
   if (src.empty() || src.front() != '#') return false;
   std::size_t i = 1;
@@ -122,9 +126,14 @@ ParsedSource Parser::parse() {
       continue;
     }
 
-    if (tok.token == Token::Readonly || tok.token == Token::Writeonly) {
-      const TokenData* nxt = peekNextNonTrivia();
-      if (nxt && nxt->token == Token::Buffer) {
+    if (isBufferQualifier(tok.token)) {
+      std::size_t lookahead = m_cursor;
+      while (lookahead < m_tokens.size()) {
+        const auto& t = m_tokens[lookahead];
+        if (isTrivia(t.token) || isBufferQualifier(t.token)) { lookahead++; continue; }
+        break;
+      }
+      if (lookahead < m_tokens.size() && m_tokens[lookahead].token == Token::Buffer) {
         BufferDecl bd = parseBufferDecl();
 
         for (const auto& existing : result.buffers) {
@@ -142,8 +151,18 @@ ParsedSource Parser::parse() {
       advance();
     }
     else if (tok.token == Token::Buffer) {
-      GRF_PANIC("{}:{}:{}: 'buffer' must be preceded by 'readonly' or 'writeonly'",
-                m_sourceName, tok.loc.row, tok.loc.col);
+      BufferDecl bd = parseBufferDecl();
+
+      for (const auto& existing : result.buffers) {
+        if (existing.instanceName == bd.instanceName) {
+          GRF_PANIC("{}:{}:{}: duplicate buffer instance name '{}'",
+                    m_sourceName, bd.loc.row, bd.loc.col, bd.instanceName);
+        }
+      }
+      result.buffers.push_back(bd);
+
+      if (!atEnd()) emitLineDirective(result.body, peek().loc.row);
+      continue;
     }
     else if (tok.token == Token::Push) {
       const TokenData* nxt = peekNextNonTrivia();
@@ -209,12 +228,17 @@ ParsedSource Parser::parse() {
 }
 
 BufferDecl Parser::parseBufferDecl() {
-  const TokenData& qualTok   = advance();
-  std::string_view qualifier = qualTok.source;
-  SourceLoc        declLoc   = qualTok.loc;
+  SourceLoc   declLoc  = peek().loc;
+  std::string qualifier;
 
-  skipTrivia();
-  expect(Token::Buffer, "'buffer' after qualifier");
+  while (isBufferQualifier(peek().token)) {
+    if (!qualifier.empty()) qualifier += ' ';
+    qualifier += peek().source;
+    advance();
+    skipTrivia();
+  }
+
+  expect(Token::Buffer, qualifier.empty() ? "'buffer'" : "'buffer' after qualifier");
 
   skipTrivia();
   const TokenData& lbrace = peek();
@@ -280,7 +304,7 @@ BufferDecl Parser::parseBufferDecl() {
   }
 
   return BufferDecl{
-    .qualifier    = qualifier,
+    .qualifier    = std::move(qualifier),
     .typeName     = std::move(typeName),
     .body         = body,
     .instanceName = std::move(instanceName),

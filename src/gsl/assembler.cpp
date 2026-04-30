@@ -56,8 +56,13 @@ std::string Assembler::assemble() const {
   }
 
   for (const auto& b : m_parsed.buffers) {
-    out += std::format("layout(buffer_reference, std430) {} buffer {} {{{}}};\n",
-                       b.qualifier, b.typeName, b.body);
+    if (b.qualifier.empty()) {
+      out += std::format("layout(buffer_reference, std430) buffer {} {{{}}};\n",
+                         b.typeName, b.body);
+    } else {
+      out += std::format("layout(buffer_reference, std430) {} buffer {} {{{}}};\n",
+                         b.qualifier, b.typeName, b.body);
+    }
   }
   if (!m_parsed.buffers.empty()) out += '\n';
 

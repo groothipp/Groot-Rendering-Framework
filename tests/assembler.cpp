@@ -78,6 +78,32 @@ TEST_CASE("assembler: writeonly buffer rewritten as buffer_reference", "[gsl][as
   CHECK(contains(out, "layout(buffer_reference, std430) writeonly buffer _GrfBuf_0"));
 }
 
+TEST_CASE("assembler: bare buffer emits without qualifier slot", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "buffer { vec3 pos[]; } verts;\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "layout(buffer_reference, std430) buffer _GrfBuf_0"));
+  CHECK_FALSE(contains(out, "std430)  buffer"));
+  CHECK(contains(out, "_GrfBuf_0 verts;"));
+}
+
+TEST_CASE("assembler: coherent buffer rewritten as buffer_reference", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "coherent buffer { uint v[]; } b;\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "layout(buffer_reference, std430) coherent buffer _GrfBuf_0"));
+}
+
+TEST_CASE("assembler: combined qualifiers preserved in source order", "[gsl][assembler]") {
+  auto out = assembleFrom(
+    "readonly coherent buffer { vec3 pos[]; } verts;\n"
+    "void main() {}"
+  );
+  CHECK(contains(out, "layout(buffer_reference, std430) readonly coherent buffer _GrfBuf_0"));
+}
+
 TEST_CASE("assembler: buffer presence adds buffer-reference field to push block", "[gsl][assembler]") {
   auto out = assembleFrom(
     "readonly buffer { vec3 pos[]; } verts;\n"

@@ -20,6 +20,7 @@ enum class Token : int8_t {
   Buffer,
   Readonly,
   Writeonly,
+  Coherent,
   Push,
   ThreadGroup,
   In,

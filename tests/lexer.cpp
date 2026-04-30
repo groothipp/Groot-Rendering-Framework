@@ -85,6 +85,12 @@ TEST_CASE("lexer: DSL keywords classify", "[gsl][lexer]") {
     CHECK(t[0].token == Token::Writeonly);
   }
 
+  SECTION("coherent") {
+    auto t = lex("coherent");
+    REQUIRE(t.size() == 2);
+    CHECK(t[0].token == Token::Coherent);
+  }
+
   SECTION("push") {
     auto t = lex("push");
     REQUIRE(t.size() == 2);

@@ -158,6 +158,7 @@ TokenData Lexer::lexIdentifierOrKeyword() {
   if      (text == "buffer")        kind = Token::Buffer;
   else if (text == "readonly")      kind = Token::Readonly;
   else if (text == "writeonly")     kind = Token::Writeonly;
+  else if (text == "coherent")      kind = Token::Coherent;
   else if (text == "push")          kind = Token::Push;
   else if (text == "thread_group")  kind = Token::ThreadGroup;
   else if (text == "in")            kind = Token::In;
