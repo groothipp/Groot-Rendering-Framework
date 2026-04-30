@@ -137,12 +137,17 @@ pipeline's push constant size and panics if you do.
 
 ────────────────────────────────────────────────────────────
 
-## `readonly buffer { ... } name;` / `writeonly buffer { ... } name;`
+## `buffer { ... } name;`
 
-Storage buffers, accessed via buffer device address. `readonly` or
-`writeonly` qualifier required.
+Storage buffers, accessed via buffer device address. Optional qualifiers —
+`readonly`, `writeonly`, `coherent` — may appear in any order before
+`buffer` and are passed through to GLSL verbatim:
 
 ```glsl
+buffer {
+  vec4 positions[];
+} verts;
+
 readonly buffer {
   vec4 positions[];
 } verts;
@@ -150,6 +155,10 @@ readonly buffer {
 writeonly buffer {
   uint outputs[];
 } dst;
+
+readonly coherent buffer {
+  uint counters[];
+} shared;
 
 push {
   uint count;
