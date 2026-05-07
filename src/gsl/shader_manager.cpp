@@ -15,6 +15,7 @@ namespace grf {
 ShaderManager::ShaderManager(vk::Device& device) : m_device(device) {
   m_opts.SetOptimizationLevel(shaderc_optimization_level_performance);
   m_opts.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_4);
+  m_opts.SetTargetSpirv(shaderc_spirv_version_1_6);
   loadCache();
 }
 
@@ -194,7 +195,7 @@ std::vector<uint32_t> ShaderManager::codeFromPath(ShaderType type, const std::st
   std::string source = stringify(file);
   std::string shaderSource = getShaderSource(type, source, path, threadGroup);
 
-  auto res = m_compiler.CompileGlslToSpv(shaderSource, shadercType(type), path.c_str());
+  auto res = m_compiler.CompileGlslToSpv(shaderSource, shadercType(type), path.c_str(), m_opts);
   if (res.GetNumErrors() > 0)
     GRF_PANIC("Failed to compile \"{}\":\n{}", path, res.GetErrorMessage());
 
