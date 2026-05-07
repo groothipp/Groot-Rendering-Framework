@@ -1,0 +1,67 @@
+readonly buffer { uint _Morton[]; };
+writeonly buffer { uvec4 _InternalNodes[]; };
+writeonly buffer { uint _NodeParents[]; };
+writeonly buffer { uint _LeafParents[]; };
+
+push {
+  uint _N;
+};
+
+thread_group [64, 1, 1];
+
+const uint LEAF_BIT = 0x80000000;
+
+int delta(int i, int j) {
+  if (j < 0 || j >= int(_N)) return -1;
+  uint ma = _Morton[i];
+  uint mb = _Morton[j];
+  uint xm = ma ^ mb;
+  if (xm != 0) return 31 - findMSB(xm);
+  return 32 + (31 - findMSB(uint(i) ^ uint(j)));
+}
+
+void main() {
+  int i = int(gl_GlobalInvocationID.x);
+  if (i >= int(_N) - 1) return;
+
+  int d = (delta(i, i + 1) >= delta(i, i - 1)) ? +1 : -1;
+  int deltaMin = delta(i, i - d);
+
+  int lMax = 2;
+  while (delta(i, i + lMax * d) > deltaMin) lMax *= 2;
+
+  int l = 0;
+  for (int t = lMax / 2; t >= 1; t /= 2) {
+    if (delta(i, i + (l + t) * d) > deltaMin) l += t;
+  }
+  int j = i + l * d;
+
+  int deltaNode = delta(i, j);
+  int s = 0;
+  int divisor = 2;
+  for (;;) {
+    int t = (l + divisor - 1) / divisor;
+    if (delta(i, i + (s + t) * d) > deltaNode) s += t;
+    if (t <= 1) break;
+    divisor *= 2;
+  }
+  int gamma = i + s * d + min(d, 0);
+
+  int rangeLo = min(i, j);
+  int rangeHi = max(i, j);
+
+  uint leftChild  = (rangeLo == gamma)
+                  ? (uint(gamma)     | LEAF_BIT)
+                  :  uint(gamma);
+  uint rightChild = (rangeHi == gamma + 1)
+                  ? (uint(gamma + 1) | LEAF_BIT)
+                  :  uint(gamma + 1);
+
+  _InternalNodes[i] = uvec4(leftChild, rightChild, 0, 0);
+
+  if ((leftChild & LEAF_BIT) != 0)   _LeafParents[gamma] = uint(i);
+  else                               _NodeParents[gamma] = uint(i);
+
+  if ((rightChild & LEAF_BIT) != 0)  _LeafParents[gamma + 1] = uint(i);
+  else                               _NodeParents[gamma + 1] = uint(i);
+}

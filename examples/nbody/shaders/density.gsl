@@ -1,0 +1,78 @@
+#define PI 3.14159265
+
+readonly buffer { uint _Index[]; };
+readonly buffer { uvec4 _InternalNodes[]; };
+readonly buffer { vec4 _NodeAABB[]; };
+
+readonly buffer { vec2 _Pos[]; };
+
+writeonly buffer { float _Density[]; };
+
+push {
+  uint _RootIndex;
+  uint _N;
+  float _M;
+  float _H;
+};
+
+thread_group [64, 1, 1];
+
+const uint g_leafBit = 0x80000000;
+const uint g_leafMask = 0x7FFFFFFF;
+const uint g_stackSize = 64;
+
+float sqDistAABB(vec2 p, vec4 aabb) {
+  vec2 closest = clamp(p, aabb.xy, aabb.zw);
+  vec2 d = p - closest;
+  return dot(d, d);
+}
+
+float W(float r, float h) {
+  float q = r / h;
+  float sigma = 10.0 / (7.0 * PI * h * h);
+
+  if (q < 1.0)
+    return sigma * (1.0 - 1.5 * q * q + 0.75 * q * q * q);
+  else if (q < 2.0) {
+    float t = 2.0 - q;
+    return sigma * 0.25 * t * t * t;
+  }
+
+  return 0.0;
+}
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  if (i >= _N) return;
+
+  float r2 = 4.0 * _H * _H;
+  float rho = 0.0;
+
+  uint stack[g_stackSize];
+  int sp = 0;
+  stack[sp++] = _RootIndex;
+
+  while (sp > 0) {
+    uint node = stack[--sp];
+
+    if ((node & g_leafBit) != 0) {
+      uint leafIndex = node & g_leafMask;
+      uint j = _Index[leafIndex];
+
+      vec2 rVec = _Pos[j] - _Pos[i];
+      float r = length(rVec);
+      rho += _M * W(r, _H);
+
+      continue;
+    }
+
+    vec4 aabb = _NodeAABB[node];
+    if (sqDistAABB(_Pos[i], aabb) > r2) continue;
+
+    uvec4 n = _InternalNodes[node];
+    stack[sp++] = n.x;
+    stack[sp++] = n.y;
+  }
+
+  _Density[i] = rho;
+}

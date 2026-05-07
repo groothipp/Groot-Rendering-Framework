@@ -1,0 +1,16 @@
+writeonly buffer { uint _AggCounter[]; };
+writeonly buffer { uint _NodeParents[]; };
+
+push {
+  uint _N;
+};
+
+thread_group [256, 1, 1];
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  if (i >= _N) return;
+
+  _AggCounter[i] = 0;
+  _NodeParents[i] = 0xFFFFFFFF;
+}

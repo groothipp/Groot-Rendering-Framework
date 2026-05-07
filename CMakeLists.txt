@@ -217,7 +217,7 @@ endif()
 if(GRF_EXAMPLES)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
   set(GRF_EXAMPLES_DIR ${CMAKE_SOURCE_DIR}/examples)
-  add_subdirectory(${GRF_EXAMPLES_DIR}/gravity_particles)
+  add_subdirectory(${GRF_EXAMPLES_DIR}/nbody)
 endif()
 
 install(TARGETS grf

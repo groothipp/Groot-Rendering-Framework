@@ -1,0 +1,37 @@
+#define KEYS_PER_THREAD 4
+
+readonly buffer { uint _Keys[]; };
+writeonly buffer { uint _Histogram[]; };
+
+push {
+  uint _N;
+  uint _TileCount;
+  uint _Shift;
+};
+
+thread_group [256, 1, 1];
+
+shared uint sHist[16];
+
+void main() {
+  uint tid = gl_LocalInvocationID.x;
+  uint tile = gl_WorkGroupID.x;
+
+  if (tid < 16) sHist[tid] = 0;
+
+  barrier();
+
+  uint base = tile * 1024 + tid;
+  for (uint k = 0; k < KEYS_PER_THREAD; ++k) {
+    uint index = base + k * 256;
+    if (index >= _N) continue;
+
+    uint digit = (_Keys[index] >> _Shift) & 0xF;
+    atomicAdd(sHist[digit], 1);
+  }
+
+  barrier();
+
+  if (tid < 16)
+    _Histogram[tid * _TileCount + tile] = sHist[tid];
+}

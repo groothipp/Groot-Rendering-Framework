@@ -1,0 +1,36 @@
+readonly buffer { vec4 _NodeAABB[]; };
+
+push {
+  uvec2 _ScreenDims;
+  uint _N;
+};
+
+out vec3 _LineColor;
+
+void main() {
+  uint nodeIdx = gl_VertexIndex / 8;
+  uint vertIdx = gl_VertexIndex % 8;
+
+  vec4 aabb = _NodeAABB[nodeIdx];
+
+  vec2 corners[8] = vec2[](
+    vec2(aabb.x, aabb.y),
+    vec2(aabb.z, aabb.y),
+    vec2(aabb.z, aabb.y),
+    vec2(aabb.z, aabb.w),
+    vec2(aabb.z, aabb.w),
+    vec2(aabb.x, aabb.w),
+    vec2(aabb.x, aabb.w),
+    vec2(aabb.x, aabb.y)
+  );
+
+  vec2 worldPos = corners[vertIdx];
+  float ar = float(_ScreenDims.x) / float(_ScreenDims.y);
+  vec2 clipPos = worldPos * vec2(1.0 / ar, 1.0);
+
+  gl_Position = vec4(clipPos, 0.0, 1.0);
+
+  float s = max(aabb.z - aabb.x, aabb.w - aabb.y);
+  float t = clamp(s * 4.0, 0.0, 1.0);
+  _LineColor = mix(vec3(0.2, 1.0, 0.4), vec3(1.0, 0.3, 0.2), t);
+}

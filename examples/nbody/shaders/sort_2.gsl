@@ -1,0 +1,58 @@
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_basic      : require
+
+readonly buffer { uint _Histogram[]; };
+writeonly buffer { uint _GlobalOffset[]; };
+
+push {
+  uint _TileCount;
+};
+
+thread_group [256, 1, 1];
+
+const uint g_maxHistSize = 4096;
+
+shared uint s_subgroupSums[8];
+shared uint s_subgroupOffsets[8];
+shared uint s_data[g_maxHistSize];
+
+void main() {
+  uint tid = gl_LocalInvocationID.x;
+  uint histSize = 16 * _TileCount;
+  uint perThread = (histSize + 255) / 256;
+
+  uint threadSum = 0;
+  for (uint k = 0; k < perThread; ++k) {
+    uint index = tid * perThread + k;
+    uint val = (index < histSize) ? _Histogram[index] : 0;
+    s_data[index] = threadSum;
+    threadSum += val;
+  }
+
+  uint subgroupOffset = subgroupExclusiveAdd(threadSum);
+  uint subgroupTotal = subgroupAdd(threadSum);
+
+  if (subgroupElect())
+    s_subgroupSums[gl_SubgroupID] = subgroupTotal;
+
+  barrier();
+
+  if (tid == 0) {
+    uint running = 0;
+    for (uint s = 0; s < gl_NumSubgroups; ++s) {
+      uint t = s_subgroupSums[s];
+      s_subgroupOffsets[s] = running;
+      running += t;
+    }
+  }
+
+  barrier();
+
+  uint globalThreadOffset = s_subgroupOffsets[gl_SubgroupID] + subgroupOffset;
+
+  for (uint k = 0; k < perThread; ++k) {
+    uint index = tid * perThread + k;
+    if (index < histSize)
+      _GlobalOffset[index] = s_data[index] + globalThreadOffset;
+  }
+}

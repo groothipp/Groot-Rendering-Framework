@@ -1,0 +1,52 @@
+#extension GL_KHR_shader_subgroup_arithmetic  : require
+#extension GL_KHR_shader_subgroup_basic       : require
+
+#define FLT_MAX 3.4028235e38
+
+readonly buffer { vec4 _Scratch[]; };
+writeonly buffer { vec4 _Bounds[]; };
+
+push {
+  uint _TileCount;
+};
+
+thread_group [256, 1, 1];
+
+shared vec2 sMin[32];
+shared vec2 sMax[32];
+
+void main() {
+  uint tid = gl_LocalInvocationID.x;
+
+  vec2 m = vec2(FLT_MAX);
+  vec2 M = vec2(-FLT_MAX);
+
+  for (uint k = tid; k < _TileCount; k += 256) {
+    vec4 e = _Scratch[k];
+    m = min(m, e.xy);
+    M = max(M, e.zw);
+  }
+
+  vec2 sgMin = subgroupMin(m);
+  vec2 sgMax = subgroupMax(M);
+
+  if (subgroupElect()) {
+    sMin[gl_SubgroupID] = sgMin;
+    sMax[gl_SubgroupID] = sgMax;
+  }
+
+  barrier();
+
+  if (gl_SubgroupID != 0) return;
+
+  uint lane = gl_SubgroupInvocationID;
+
+  vec2 mm = (lane < gl_NumSubgroups) ? sMin[lane] : vec2(FLT_MAX);
+  vec2 MM = (lane < gl_NumSubgroups) ? sMax[lane] : vec2(-FLT_MAX);
+
+  mm = subgroupMin(mm);
+  MM = subgroupMax(MM);
+
+  if (subgroupElect())
+    _Bounds[0] = vec4(mm, MM);
+}
