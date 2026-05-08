@@ -3,6 +3,7 @@
 #include "internal/resources/resource_manager.hpp"
 #include "internal/allocator.hpp"
 #include "internal/log.hpp"
+
 #include <mutex>
 
 namespace grf {

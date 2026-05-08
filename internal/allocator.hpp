@@ -6,15 +6,15 @@
 #include "internal/resources/sampler.hpp"
 
 #include "public/types.hpp"
-#include "vulkan/vulkan.hpp"
 
-#include <cstdint>
-#include <vk_mem_alloc.h>
+#include "external/vma/include/vk_mem_alloc.h"
+
 #include <vulkan/vulkan.hpp>
 
 #include <unordered_map>
 #include <optional>
 #include <mutex>
+#include <cstdint>
 
 namespace grf {
 

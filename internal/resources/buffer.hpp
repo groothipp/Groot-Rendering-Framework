@@ -2,7 +2,8 @@
 
 #include "public/resources.hpp"
 
-#include <vk_mem_alloc.h>
+#include "external/vma/include/vk_mem_alloc.h"
+
 #include <vulkan/vulkan.hpp>
 
 #include <array>
