@@ -1,0 +1,46 @@
+#extension GL_KHR_shader_subgroup_arithmetic  : require
+#extension GL_KHR_shader_subgroup_basic       : require
+
+#define F32_MAX 3.4028235e38
+
+readonly buffer { vec2 _Pos[]; };
+writeonly buffer { vec4 _Scratch[]; };
+
+push {
+  uint _ParticleCount;
+};
+
+thread_group [256, 1, 1];
+
+shared vec2 s_min[32];
+shared vec2 s_max[32];
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+
+  vec2 p = (i < _ParticleCount) ? _Pos[i] : vec2(F32_MAX);
+  vec2 q = (i < _ParticleCount) ? _Pos[i] : vec2(-F32_MAX);
+
+  vec2 sgMin = subgroupMin(p);
+  vec2 sgMax = subgroupMax(q);
+
+  if (subgroupElect()) {
+    s_min[gl_SubgroupID] = sgMin;
+    s_max[gl_SubgroupID] = sgMax;
+  }
+
+  barrier();
+
+  if (gl_SubgroupID != 0) return;
+
+  uint lane = gl_SubgroupInvocationID;
+
+  vec2 m = (lane < gl_NumSubgroups) ? s_min[lane] : vec2(F32_MAX);
+  vec2 M = (lane < gl_NumSubgroups) ? s_max[lane] : vec2(-F32_MAX);
+
+  m = subgroupMin(m);
+  M = subgroupMax(M);
+
+  if (subgroupElect())
+    _Scratch[gl_WorkGroupID.x] = vec4(m, M);
+}

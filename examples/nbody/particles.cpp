@@ -27,10 +27,6 @@ Particles::Particles(GRF& grf, const std::string& shadersFolderName, u32 flightF
   reset(flightFrames);
 }
 
-std::pair<Buffer&, Buffer&> Particles::prevBuffers(u32 prevFrameIndex) {
-  return { m_posRing[prevFrameIndex], m_velRing[prevFrameIndex] };
-}
-
 std::pair<Buffer&, Buffer&> Particles::buffers(u32 frameIndex) {
   return { m_posRing[frameIndex], m_velRing[frameIndex] };
 }

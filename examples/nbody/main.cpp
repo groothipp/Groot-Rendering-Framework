@@ -15,11 +15,14 @@ int main() {
   });
 
   Particles particles(grf, "particles", g_flightFrames);
+  LVBHTree lvbhTree(grf, "tree");
 
   Ring<CommandBuffer> graphCmdRing = grf.createCmdRing(QueueType::Graphics);
+  Ring<CommandBuffer> compCmdRing = grf.createCmdRing(QueueType::Compute);
   Ring<Fence> flightFenceRing = grf.createFenceRing(true);
   Ring<Semaphore> imgSemRing = grf.createSemaphoreRing();
   Ring<Semaphore> graphSemRing = grf.createSemaphoreRing();
+  Ring<Semaphore> compSemRing = grf.createSemaphoreRing();
 
   u32 particleCount = 0;
   u32 prevFrameIndex = g_flightFrames - 1;
@@ -33,10 +36,14 @@ int main() {
     spawnTimer = std::min(spawnTimer + dt, g_spawnTimerTimeout);
 
     auto& graphCmd = graphCmdRing[frameIndex];
+    auto& compCmd = compCmdRing[frameIndex];
 
     auto& flightFence = flightFenceRing[frameIndex];
     auto& imgSem = imgSemRing[frameIndex];
     auto& graphSem = graphSemRing[frameIndex];
+    auto& compSem = compSemRing[frameIndex];
+
+    auto [prevPosBuf, prevVelBuf] = particles.buffers(prevFrameIndex);
 
     grf.waitFences({ flightFence });
     grf.resetFences({ flightFence });
@@ -47,6 +54,14 @@ int main() {
       .loadOp   = LoadOp::Clear,
       .storeOp  = StoreOp::Store
     };
+
+    compCmd.begin();
+    if (particleCount > 0) {
+      compCmd.beginProfile("tree construction");
+      lvbhTree.construct(compCmd, frameIndex, particleCount, prevPosBuf.address());
+      compCmd.endProfile();
+    }
+    compCmd.end();
 
     graphCmd.begin();
     graphCmd.transition(swapchainImage, Layout::Undefined, Layout::ColorAttachmentOptimal);
@@ -61,7 +76,6 @@ int main() {
       graphCmd.endProfile();
     }
 
-    graphCmd.beginProfile("gui");
     grf.gui().beginFrame();
     grf.profiler().render();
 
@@ -73,6 +87,7 @@ int main() {
       bool shouldReset = ImGui::Button("reset", ImVec2(100.0, 25.0));
     ImGui::End();
 
+    graphCmd.beginProfile("gui");
     grf.gui().render(graphCmd);
     graphCmd.endProfile();
 
@@ -82,7 +97,8 @@ int main() {
 
     grf.waitForResourceUpdates();
 
-    grf.submit(graphCmd, { imgSem }, { graphSem }, flightFence);
+    grf.submit(compCmd, {}, { compSem });
+    grf.submit(graphCmd, { imgSem, compSem }, { graphSem }, flightFence);
     grf.present(swapchainImage, { graphSem });
 
     if (particleCount > 0 && shouldReset) {

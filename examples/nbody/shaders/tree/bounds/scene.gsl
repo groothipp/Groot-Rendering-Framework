@@ -1,0 +1,51 @@
+#extension GL_KHR_shader_subgroup_arithmetic  : require
+#extension GL_KHR_shader_subgroup_basic       : require
+
+#define F32_MAX 3.4028235e38
+
+readonly buffer { vec4 _Scratch[]; };
+writeonly buffer { vec4 _Bounds; };
+
+push {
+  uint _TileCount;
+};
+
+thread_group [256, 1, 1];
+
+shared vec2 s_min[32];
+shared vec2 s_max[32];
+
+void main() {
+  uint tid = gl_LocalInvocationID.x;
+
+  vec2 m = vec2(F32_MAX);
+  vec2 M = vec2(-F32_MAX);
+
+  for (uint i = tid; i < _TileCount; i += 256) {
+    vec4 tile = _Scratch[i];
+    m = min(m, tile.xy);
+    M = max(M, tile.zw);
+  }
+
+  vec2 sgMin = subgroupMin(m);
+  vec2 sgMax = subgroupMax(M);
+
+  if (subgroupElect()) {
+    s_min[gl_SubgroupID] = sgMin;
+    s_max[gl_SubgroupID] = sgMax;
+  }
+
+  barrier();
+
+  if (gl_SubgroupID != 0) return;
+
+  uint lane = gl_SubgroupInvocationID;
+  vec2 minBounds = (lane < gl_NumSubgroups) ? s_min[lane] : vec2(F32_MAX);
+  vec2 maxBounds = (lane < gl_NumSubgroups) ? s_max[lane] : vec2(-F32_MAX);
+
+  minBounds = subgroupMin(minBounds);
+  maxBounds = subgroupMax(maxBounds);
+
+  if (subgroupElect())
+    _Bounds = vec4(minBounds, maxBounds);
+}
