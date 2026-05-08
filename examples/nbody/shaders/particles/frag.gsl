@@ -1,0 +1,33 @@
+readonly buffer {
+  vec2 _Pos[];
+};
+
+readonly buffer {
+  vec2 _Vel[];
+};
+
+push {
+  uvec2 _ScreenDims;
+  uint _ParticleCount;
+  float _ParticleRadius;
+};
+
+in vec2  _WorldPos;
+
+out vec4 _FragColor;
+
+void main() {
+  float blended_sdf = 1e6;
+  for (int i = 0; i < _ParticleCount; ++i) {
+    float sdf = length(_Pos[i] - _WorldPos) - _ParticleRadius;
+    blended_sdf = min(sdf, blended_sdf);
+  }
+
+  float aa = fwidth(blended_sdf);
+  float alpha = 1.0 - smoothstep(-aa, aa, blended_sdf);
+  if (alpha < 0.001) discard;
+
+  vec3 albedo = vec3(0.01, 0.8, 0.2);
+
+  _FragColor = vec4(albedo, alpha);
+}

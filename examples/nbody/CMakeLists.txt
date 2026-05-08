@@ -1,4 +1,8 @@
-add_executable(nbody ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
+add_executable(nbody
+  ${CMAKE_CURRENT_SOURCE_DIR}/nbody.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/particles.cpp
+)
 
 target_compile_definitions(nbody PRIVATE
   "SHADERS=\"${CMAKE_CURRENT_SOURCE_DIR}/shaders\""
