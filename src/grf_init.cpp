@@ -136,7 +136,8 @@ void GRF::Impl::chooseGPU(const std::vector<const char *>& requiredExtensions) {
       !f12.hostQueryReset                               ||
       !f12.shaderSubgroupExtendedTypes                  ||
       !f13.dynamicRendering                             ||
-      !f13.synchronization2
+      !f13.synchronization2                             ||
+      !f13.shaderDemoteToHelperInvocation
     ) continue;
 
     m_gpu = gpu;
@@ -230,8 +231,9 @@ void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
   }
 
   vk::PhysicalDeviceVulkan13Features f13{
-    .synchronization2 = true,
-    .dynamicRendering = true
+    .shaderDemoteToHelperInvocation = true,
+    .synchronization2               = true,
+    .dynamicRendering               = true
   };
 
   vk::PhysicalDeviceVulkan12Features f12{
