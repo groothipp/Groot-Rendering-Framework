@@ -163,6 +163,21 @@ target_link_libraries(grf PRIVATE
   $<BUILD_INTERFACE:glm::glm>
 )
 
+if(APPLE)
+  # Homebrew's validation layer manifest references its dylib by bare filename,
+  # so dlopen falls back to dyld defaults that don't include Homebrew's lib dir.
+  # Add it to the rpath of any consumer linking grf so VK_LAYER_KHRONOS_validation loads.
+  execute_process(
+    COMMAND brew --prefix
+    OUTPUT_VARIABLE GRF_BREW_PREFIX
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(GRF_BREW_PREFIX)
+    target_link_options(grf INTERFACE "LINKER:-rpath,${GRF_BREW_PREFIX}/lib")
+  endif()
+endif()
+
 if(GRF_DEBUG)
   target_compile_options(grf PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-O0 -g3>
