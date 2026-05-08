@@ -74,7 +74,7 @@ u32 Particles::spawn(vec2 center, u32 particleCount, u32 flightFrames) {
     f32 r = std::sqrt(RealDist(0.0, radius)(m_rng));
     f32 theta = RealDist(0.0, 2.0 * pi)(m_rng);
 
-    positions.emplace_back(center + vec2(r * cos(theta), r * sin(theta)));
+    positions.emplace_back(center - vec2(r * cos(theta), r * sin(theta)));
   }
 
   for (u32 i = 0; i < flightFrames; ++i)

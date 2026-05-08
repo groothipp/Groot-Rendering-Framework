@@ -1,0 +1,21 @@
+#include "nbody.hpp"
+
+#include <format>
+
+LVBHTree::LVBHTree(GRF& grf, const std::string& shadersFolderName)
+: m_boundsPass(BoundsPass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
+  m_encodePass(EncodePass(grf, std::format("{}/{}", SHADERS, shadersFolderName)))
+{}
+
+void LVBHTree::construct(CommandBuffer& cmd, u32 frameIndex, u32 particleCount, u64 posBufAddr) {
+  m_boundsPass.dispatch(cmd, frameIndex, particleCount, posBufAddr);
+
+  Buffer& boundsBuf = m_boundsPass.boundsBuffer(frameIndex);
+  cmd.barrier(boundsBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
+
+  m_encodePass.dispatch(cmd, frameIndex, EncodePass::Data{
+    .posBufAddr     = posBufAddr,
+    .boundsBufAddr  = boundsBuf.address(),
+    .particleCount  = particleCount
+  });
+}

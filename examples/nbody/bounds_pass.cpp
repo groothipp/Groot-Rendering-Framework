@@ -42,11 +42,3 @@ void BoundsPass::dispatch(CommandBuffer& cmd, u32 frameIndex, u32 particleCount,
   });
   cmd.dispatch(1);
 }
-
-LVBHTree::LVBHTree(GRF& grf, const std::string& shadersFolderName)
-: m_boundsPass(BoundsPass(grf, std::format("{}/{}", SHADERS, shadersFolderName)))
-{}
-
-void LVBHTree::construct(CommandBuffer& cmd, u32 frameIndex, u32 particleCount, u64 posBufAddr) {
-  m_boundsPass.dispatch(cmd, frameIndex, particleCount, posBufAddr);
-}

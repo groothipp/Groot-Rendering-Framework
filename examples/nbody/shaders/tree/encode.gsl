@@ -1,0 +1,37 @@
+readonly buffer { vec2 _Pos[]; };
+readonly buffer { vec4 _Bounds; };
+writeonly buffer { uint _Morton[]; };
+writeonly buffer { uint _Index[]; };
+
+push {
+  uint _ParticleCount;
+};
+
+thread_group [256, 1, 1];
+
+uint expandBits(uint v) {
+  v = (v | (v << 8)) & 0x00FF00FFu;
+  v = (v | (v << 4)) & 0x0F0F0F0Fu;
+  v = (v | (v << 2)) & 0x33333333u;
+  v = (v | (v << 1)) & 0x55555555u;
+  return v;
+}
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  if (i >= _ParticleCount) return;
+
+  vec2 minBounds = _Bounds.xy;
+  vec2 maxBounds = _Bounds.zw;
+  vec2 extent = maxBounds - minBounds;
+
+  vec2 n = (extent.x > 0.0 && extent.y > 0.0)
+            ? (_Pos[i] - minBounds) / extent
+            : vec2(0.0);
+
+  uint qx = clamp(uint(n.x * 65535.0), 0u, 65535u);
+  uint qy = clamp(uint(n.y * 65535.0), 0u, 65535u);
+
+  _Morton[i] = expandBits(qx) | (expandBits(qy) << 1);
+  _Index[i] = i;
+}

@@ -7,6 +7,8 @@
 
 using namespace grf;
 
+static const u32 g_maxParticleCount = 1000000;
+
 class Particles {
   using RealDist = std::uniform_real_distribution<f32>;
 
@@ -20,8 +22,6 @@ public:
   };
 
 private:
-  static const u32  g_maxParticleCount = 1000000;
-
   GRF&              m_grf;
   Shader            m_vertShader;
   Shader            m_fragShader;
@@ -42,7 +42,6 @@ public:
 };
 
 class BoundsPass {
-public:
   struct TileData {
     u64 posBufAddr;
     u64 scratchBufAddr;
@@ -55,7 +54,6 @@ public:
     u32 tileCount;
   };
 
-private:
   GRF&            m_grf;
   Shader          m_tileShader;
   Shader          m_sceneShader;
@@ -69,8 +67,32 @@ public:
   void dispatch(CommandBuffer&, u32, u32, u64);
 };
 
+class EncodePass {
+public:
+  struct Data {
+    u64 posBufAddr;
+    u64 boundsBufAddr;
+    u64 mortonBufAddr;
+    u64 indexBufAddr;
+    u32 particleCount;
+  };
+
+private:
+  Shader          m_encodeShader;
+  ComputePipeline m_encodePipeline;
+  Ring<Buffer>    m_mortonRing;
+  Ring<Buffer>    m_indexRing;
+
+public:
+  EncodePass(GRF&, const std::string&);
+  Buffer& mortonBuffer(u32);
+  Buffer& indexBuffer(u32);
+  void dispatch(CommandBuffer&, u32, Data);
+};
+
 class LVBHTree {
   BoundsPass m_boundsPass;
+  EncodePass m_encodePass;
 
 public:
   LVBHTree(GRF&, const std::string&);
