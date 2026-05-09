@@ -52,26 +52,18 @@ void Particles::reset(u32 flightFrames) {
   }
 }
 
-u32 Particles::spawn(vec2 center, u32 particleCount, u32 flightFrames) {
+u32 Particles::spawn(vec2 center, u32 particleCount, u32 flightFrames, f32 spawnRadius) {
   static constexpr f32  pi            = std::numbers::pi_v<f32>;
-  static const u32      spawnDensity  = 500;
-  static const u32      minSpawnCount = 10;
-  static const u32      maxSpawnCount = 100;
-  static const f32      minRadius     = std::sqrt(minSpawnCount / (spawnDensity * pi));
-  static const f32      maxRadius     = std::sqrt(maxSpawnCount / (spawnDensity * pi));
+  static const u32      spawnDensity  = 150;
 
-  if (particleCount >= g_maxParticleCount) return 0;
-
-  const float radius = RealDist(minRadius, maxRadius)(m_rng);
-
-  u32 count = spawnDensity * pi * radius * radius;
+  u32 count = spawnDensity * pi * spawnRadius * spawnRadius;
   count = std::min(count, g_maxParticleCount - particleCount);
 
   std::vector<vec2> positions;
   positions.reserve(count);
 
   for (u32 i = 0; i < count; ++i) {
-    f32 r = std::sqrt(RealDist(0.0, radius)(m_rng));
+    f32 r = spawnRadius * std::sqrt(RealDist(0.0, 1.0)(m_rng));
     f32 theta = RealDist(0.0, 2.0 * pi)(m_rng);
 
     positions.emplace_back(center - vec2(r * cos(theta), r * sin(theta)));

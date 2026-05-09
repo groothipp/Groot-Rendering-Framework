@@ -1,0 +1,36 @@
+#define PI 3.14159265358979323846
+
+push {
+  vec2  _Pos;
+  uvec2 _ScreenDims;
+  float _Radius;
+};
+
+in vec2 _UV;
+
+out vec4 _FragColor;
+
+void main() {
+  const float thickness = 0.1;
+  const float halfThick = 0.5 * thickness;
+  const float center  = 1.0 - halfThick;
+
+  float dist = length(_UV);
+  float sdf = abs(dist - center) - halfThick;
+
+  float aa = fwidth(sdf);
+  float alpha = 1.0 - smoothstep(-aa, aa, sdf);
+  if (alpha < 0.001) discard;
+
+  float angle = atan(_UV.y, _UV.x);
+  float t = angle / (2.0 * PI) + 0.5;
+
+  const vec3 palBase  = vec3(0.6);
+  const vec3 palAmp   = vec3(0.4);
+  const vec3 palFreq  = vec3(1.0);
+  const vec3 palPhase = vec3(0.0, 0.33, 0.67);
+
+  vec3 albedo = palBase + palAmp * cos(2.0 * PI * (palFreq * t + palPhase));
+
+  _FragColor = vec4(albedo, alpha);
+}

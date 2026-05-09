@@ -8,6 +8,8 @@
 using namespace grf;
 
 static const u32 g_maxParticleCount = 1000000;
+static const i32 g_minSpawnRadius = 33;
+static const i32 g_maxSpawnRadius = 100;
 
 class Particles {
   using RealDist = std::uniform_real_distribution<f32>;
@@ -38,7 +40,7 @@ public:
   void render(CommandBuffer&, u32, Data);
 
   void reset(u32);
-  u32 spawn(vec2, u32, u32);
+  u32 spawn(vec2, u32, u32, f32);
 };
 
 class AABBDebug {
@@ -56,6 +58,24 @@ private:
 
 public:
   AABBDebug(GRF&, const std::string&);
+  void render(CommandBuffer&, const Data&);
+};
+
+class Brush {
+public:
+  struct Data {
+    uvec2 screenDims;
+    vec2 pos;
+    f32 radius;
+  };
+
+private:
+  Shader m_vertShader;
+  Shader m_fragShader;
+  GraphicsPipeline m_pipeline;
+
+public:
+  Brush(GRF&, const std::string&);
   void render(CommandBuffer&, const Data&);
 };
 

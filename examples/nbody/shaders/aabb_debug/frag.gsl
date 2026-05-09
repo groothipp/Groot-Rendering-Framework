@@ -8,5 +8,5 @@ push {
 out vec4 _FragColor;
 
 void main() {
-  _FragColor = vec4(1.0);
+  _FragColor = vec4(1.0, 1.0, 0.0, 1.0);
 }

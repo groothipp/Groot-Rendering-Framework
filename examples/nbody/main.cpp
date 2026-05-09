@@ -2,10 +2,11 @@
 
 #include "external/imgui/imgui.h"
 
-const u32 g_windowWidth = 1280;
-const u32 g_windowHeight = 720;
-const u32 g_flightFrames = 2;
-const f32 g_spawnTimerTimeout = 0.3;
+const u32     g_windowWidth = 1280;
+const u32     g_windowHeight = 720;
+const u32     g_flightFrames = 2;
+const f32     g_spawnTimerTimeout = 0.01;
+constexpr f32 g_ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
 
 int main() {
   GRF grf(Settings{
@@ -16,6 +17,7 @@ int main() {
 
   Particles particles(grf, "particles", g_flightFrames);
   AABBDebug aabbDebug(grf, "aabb_debug");
+  Brush brush(grf, "brush");
   LVBHTree lvbhTree(grf, "tree");
 
   Ring<CommandBuffer> graphCmdRing = grf.createCmdRing(QueueType::Graphics);
@@ -30,9 +32,14 @@ int main() {
   Input& input = grf.input();
   bool aabbToggle = false;
   f32 spawnTimer = g_spawnTimerTimeout;
+  i32 spawnRadius = (g_minSpawnRadius + g_maxSpawnRadius) / 2;
+  bool brushToggle = false;
 
   while (grf.running([&]() { return input.isJustPressed(Key::Escape); })) {
     auto [frameIndex, dt] = grf.beginFrame();
+
+    if (!grf.gui().wantsKeyboard() && input.isJustPressed(Key::S))
+      brushToggle = !brushToggle;
 
     spawnTimer = std::min(spawnTimer + dt, g_spawnTimerTimeout);
 
@@ -68,6 +75,19 @@ int main() {
     graphCmd.transition(swapchainImage, Layout::Undefined, Layout::ColorAttachmentOptimal);
     graphCmd.beginRendering({ swapchainAttachment });
 
+    if (brushToggle && particleCount < g_maxParticleCount) {
+      auto [x, y] = input.cursorPos();
+      vec2 cursor = vec2(g_ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
+
+      graphCmd.beginProfile("brush");
+      brush.render(graphCmd, Brush::Data{
+        .screenDims = uvec2(g_windowWidth, g_windowHeight),
+        .pos        = cursor,
+        .radius     = static_cast<f32>(spawnRadius) / 1000.0f
+      });
+      graphCmd.endProfile();
+    }
+
     if (particleCount > 0) {
       graphCmd.beginProfile("particles");
       particles.render(graphCmd, frameIndex, Particles::Data{
@@ -96,6 +116,8 @@ int main() {
       ImGui::Text("%d", particleCount);
       ImGui::Checkbox("AABB Visuals", &aabbToggle);
       bool shouldReset = ImGui::Button("reset", ImVec2(100.0, 25.0));
+      if (brushToggle)
+        ImGui::SliderInt("radius", &spawnRadius, g_minSpawnRadius, g_maxSpawnRadius);
     ImGui::End();
 
     graphCmd.beginProfile("gui");
@@ -118,15 +140,17 @@ int main() {
     }
     else if (
       !grf.gui().wantsMouse()             &&
+      particleCount < g_maxParticleCount  &&
+      brushToggle                         &&
       input.isPressed(MouseButton::Left)  &&
       spawnTimer == g_spawnTimerTimeout
     ) {
-      constexpr f32 ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
-
       auto [x, y] = input.cursorPos();
-      vec2 center = vec2(ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
+      vec2 cursor = vec2(g_ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
 
-      particleCount += particles.spawn(center, particleCount, g_flightFrames);
+      particleCount += particles.spawn(
+        cursor, particleCount, g_flightFrames, static_cast<f32>(spawnRadius) / 1000.f
+      );
 
       spawnTimer = 0.0;
     }
