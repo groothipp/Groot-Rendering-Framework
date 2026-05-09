@@ -110,8 +110,10 @@ int main() {
       input.isPressed(MouseButton::Left)  &&
       spawnTimer == g_spawnTimerTimeout
     ) {
+      constexpr f32 ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
+
       auto [x, y] = input.cursorPos();
-      vec2 center = vec2(2.0 * x / g_windowWidth - 1.0, 2.0 * y / g_windowHeight - 1.0);
+      vec2 center = vec2(ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
 
       particleCount += particles.spawn(center, particleCount, g_flightFrames);
 
