@@ -1,0 +1,106 @@
+#extension GL_KHR_shader_subgroup_basic       : require
+#extension GL_KHR_shader_subgroup_arithmetic  : require
+#extension GL_KHR_shader_subgroup_ballot      : require
+
+#define BINS          256
+#define BLOCK_SIZE    256
+#define MAX_SUBGROUPS 8
+
+readonly  buffer { uint _KeysIn[];     };
+readonly  buffer { uint _ValsIn[];     };
+writeonly buffer { uint _KeysOut[];    };
+writeonly buffer { uint _ValsOut[];    };
+readonly  buffer { uint _Histograms[]; };
+
+push {
+  uint _ParticleCount;
+  uint _Shift;
+  uint _NumWorkgroups;
+  uint _BlocksPerWorkgroup;
+};
+
+thread_group [256, 1, 1]; // x = BLOCK_SIZE
+
+shared uint s_sums[MAX_SUBGROUPS];
+shared uint s_globalOffsets[BINS];
+
+struct BinFlags { uint flags[BLOCK_SIZE / 32]; };
+shared BinFlags s_binFlags[BINS];
+
+void main() {
+  uint lid  = gl_LocalInvocationID.x;
+  uint wid  = gl_WorkGroupID.x;
+  uint sid  = gl_SubgroupID;
+  uint lsid = gl_SubgroupInvocationID;
+
+  uint localHistogram = 0u;
+  uint prefixSum      = 0u;
+  uint histogramCount = 0u;
+
+  if (lid < BINS) {
+    uint count = 0u;
+    for (uint j = 0u; j < _NumWorkgroups; ++j) {
+      uint t = _Histograms[BINS * j + lid];
+      localHistogram = (j == wid) ? count : localHistogram;
+      count += t;
+    }
+    histogramCount = count;
+
+    uint sum = subgroupAdd(histogramCount);
+    prefixSum = subgroupExclusiveAdd(histogramCount);
+    if (subgroupElect())
+      s_sums[sid] = sum;
+  }
+  barrier();
+
+  if (lid < BINS) {
+    uint partial    = (lsid < gl_NumSubgroups) ? s_sums[lsid] : 0u;
+    uint sumsPrefix = subgroupBroadcast(subgroupExclusiveAdd(partial), sid);
+    uint globalHist = sumsPrefix + prefixSum;
+    s_globalOffsets[lid] = globalHist + localHistogram;
+  }
+
+  uint flagsBin = lid / 32u;
+  uint flagsBit = 1u << (lid % 32u);
+
+  for (uint b = 0u; b < _BlocksPerWorkgroup; ++b) {
+    uint i = wid * _BlocksPerWorkgroup * BLOCK_SIZE + b * BLOCK_SIZE + lid;
+
+    if (lid < BINS) {
+      for (uint k = 0u; k < BLOCK_SIZE / 32u; ++k)
+        s_binFlags[lid].flags[k] = 0u;
+    }
+    barrier();
+
+    uint key       = 0u;
+    uint val       = 0u;
+    uint binID     = 0u;
+    uint binOffset = 0u;
+    if (i < _ParticleCount) {
+      key       = _KeysIn[i];
+      val       = _ValsIn[i];
+      binID     = (key >> _Shift) & uint(BINS - 1);
+      binOffset = s_globalOffsets[binID];
+      atomicAdd(s_binFlags[binID].flags[flagsBin], flagsBit);
+    }
+    barrier();
+
+    if (i < _ParticleCount) {
+      uint prefix = 0u;
+      uint count  = 0u;
+      for (uint k = 0u; k < BLOCK_SIZE / 32u; ++k) {
+        uint bits    = s_binFlags[binID].flags[k];
+        uint full    = bitCount(bits);
+        uint partial = bitCount(bits & (flagsBit - 1u));
+        prefix += (k <  flagsBin) ? full    : 0u;
+        prefix += (k == flagsBin) ? partial : 0u;
+        count  += full;
+      }
+      _KeysOut[binOffset + prefix] = key;
+      _ValsOut[binOffset + prefix] = val;
+      if (prefix == count - 1u)
+        atomicAdd(s_globalOffsets[binID], count);
+    }
+    barrier();
+  }
+}

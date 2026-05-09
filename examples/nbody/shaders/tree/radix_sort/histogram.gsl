@@ -1,0 +1,37 @@
+#define BINS        256
+#define BLOCK_SIZE  256
+
+readonly  buffer { uint _Keys[];       };
+writeonly buffer { uint _Histograms[]; };
+
+push {
+  uint _ParticleCount;
+  uint _Shift;
+  uint _NumWorkgroups;
+  uint _BlocksPerWorkgroup;
+};
+
+thread_group [256, 1, 1]; // x = BLOCK_SIZE
+
+shared uint s_hist[BINS];
+
+void main() {
+  uint lid = gl_LocalInvocationID.x;
+  uint wid = gl_WorkGroupID.x;
+
+  if (lid < BINS)
+    s_hist[lid] = 0u;
+  barrier();
+
+  for (uint b = 0u; b < _BlocksPerWorkgroup; ++b) {
+    uint i = wid * _BlocksPerWorkgroup * BLOCK_SIZE + b * BLOCK_SIZE + lid;
+    if (i < _ParticleCount) {
+      uint bin = (_Keys[i] >> _Shift) & uint(BINS - 1);
+      atomicAdd(s_hist[bin], 1u);
+    }
+  }
+  barrier();
+
+  if (lid < BINS)
+    _Histograms[BINS * wid + lid] = s_hist[lid];
+}

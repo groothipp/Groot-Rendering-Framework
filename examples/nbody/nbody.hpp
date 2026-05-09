@@ -90,9 +90,47 @@ public:
   void dispatch(CommandBuffer&, u32, Data);
 };
 
+class RadixSortPass {
+  struct HistData {
+    u64 keysBufAddr;
+    u64 histBufAddr;
+    u32 particleCount;
+    u32 shift;
+    u32 workgroups;
+    u32 blocksPerWorkgroup;
+  };
+
+  struct ScatterData {
+    u64 keysInAddr;
+    u64 valsInAddr;
+    u64 keysOutAddr;
+    u64 valsOutAddr;
+    u64 histAddr;
+    u32 particleCount;
+    u32 shift;
+    u32 workgroups;
+    u32 blocksPerWorkgroup;
+  };
+
+  static const u32 g_numWorkgroups = 256;
+  static const u32 g_bins = 256;
+
+  GRF&            m_grf;
+  Shader          m_histShader;
+  Shader          m_scatterShader;
+  ComputePipeline m_histPipeline;
+  ComputePipeline m_scatterPipeline;
+  Ring<Buffer>    m_histRing;
+
+public:
+  RadixSortPass(GRF&, const std::string&);
+  void dispatch(CommandBuffer&, u32, u32, u64, u64);
+};
+
 class LVBHTree {
-  BoundsPass m_boundsPass;
-  EncodePass m_encodePass;
+  BoundsPass    m_boundsPass;
+  EncodePass    m_encodePass;
+  RadixSortPass m_radixSortPass;
 
 public:
   LVBHTree(GRF&, const std::string&);

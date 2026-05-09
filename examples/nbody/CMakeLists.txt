@@ -5,6 +5,7 @@ add_executable(nbody
   ${CMAKE_CURRENT_SOURCE_DIR}/lvbh_tree.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/particles.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/radix_sort_pass.cpp
 )
 
 target_compile_definitions(nbody PRIVATE
