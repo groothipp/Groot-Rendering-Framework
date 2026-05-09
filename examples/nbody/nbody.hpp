@@ -41,6 +41,24 @@ public:
   u32 spawn(vec2, u32, u32);
 };
 
+class AABBDebug {
+public:
+  struct Data {
+    u64   aabbBufAddr;
+    uvec2 screenDims;
+    u32   particleCount;
+  };
+
+private:
+  Shader            m_vertShader;
+  Shader            m_fragShader;
+  GraphicsPipeline  m_pipeline;
+
+public:
+  AABBDebug(GRF&, const std::string&);
+  void render(CommandBuffer&, const Data&);
+};
+
 class BoundsPass {
   struct TileData {
     u64 posBufAddr;
@@ -128,7 +146,6 @@ public:
 };
 
 class BuildPass {
-public:
   struct Data {
     u64 mortonBufAddr;
     u64 parentBufAddr;
@@ -136,7 +153,6 @@ public:
     u32 particleCount;
   };
 
-private:
   Shader          m_buildShader;
   ComputePipeline m_buildPipeline;
   Ring<Buffer>    m_parentRing;
@@ -149,13 +165,46 @@ public:
   void dispatch(CommandBuffer&, u32, u32, u64);
 };
 
+class AggregatePass {
+public:
+  struct WalkData {
+    u64 posBufAddr;
+    u64 indexBufAddr;
+    u64 childBufAddr;
+    u64 parentBufAddr;
+    u64 aabbBufAddr;
+    u64 visitBufAddr;
+    u32 particleCount;
+  };
+
+private:
+  struct ClearData {
+    u64 visitBufAddr;
+    u32 particleCount;
+  };
+
+  Shader          m_clearShader;
+  Shader          m_walkShader;
+  ComputePipeline m_clearPipeline;
+  ComputePipeline m_walkPipeline;
+  Ring<Buffer>    m_visitRing;
+  Ring<Buffer>    m_aabbRing;
+
+public:
+  AggregatePass(GRF&, const std::string&);
+  Buffer& aabbBuffer(u32);
+  void dispatch(CommandBuffer&, u32, WalkData);
+};
+
 class LVBHTree {
   BoundsPass    m_boundsPass;
   EncodePass    m_encodePass;
   RadixSortPass m_radixSortPass;
   BuildPass     m_buildPass;
+  AggregatePass m_aggregatePass;
 
 public:
   LVBHTree(GRF&, const std::string&);
   void construct(CommandBuffer&, u32, u32, u64);
+  Buffer& aabbBuffer(u32);
 };

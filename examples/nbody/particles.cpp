@@ -10,9 +10,9 @@ Particles::Particles(GRF& grf, const std::string& shadersFolderName, u32 flightF
   m_fragShader = m_grf.compileShader(ShaderType::Fragment, std::format("{}/frag.gsl", dir));
 
   BlendState alphaBlend{
+    .enable         = true,
     .srcColorFactor = BlendFactor::SrcAlpha,
-    .dstColorFactor = BlendFactor::OneMinusSrcAlpha,
-    .alphaOp        = BlendOp::Add
+    .dstColorFactor = BlendFactor::OneMinusSrcAlpha
   };
 
   m_pipeline = m_grf.createGraphicsPipeline(m_vertShader, m_fragShader, GraphicsPipelineSettings{
@@ -22,7 +22,7 @@ Particles::Particles(GRF& grf, const std::string& shadersFolderName, u32 flightF
   });
 
   m_posRing = m_grf.createBufferRing(BufferIntent::FrequentUpdate, sizeof(vec2) * g_maxParticleCount);
-  m_velRing = m_grf.createBufferRing(BufferIntent::SingleUpdate, sizeof(vec2) * g_maxParticleCount);
+  m_velRing = m_grf.createBufferRing(BufferIntent::FrequentUpdate, sizeof(vec2) * g_maxParticleCount);
 
   reset(flightFrames);
 }

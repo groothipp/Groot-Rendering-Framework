@@ -22,7 +22,7 @@ void BoundsPass::dispatch(CommandBuffer& cmd, u32 frameIndex, u32 particleCount,
   auto [x, y, z] = m_tileShader.threadGroup();
   u32 tiles = (particleCount + x - 1) / x;
 
-  Buffer scratch = m_grf.createBuffer(BufferIntent::GPUOnly, sizeof(u32) * tiles);
+  Buffer scratch = m_grf.createBuffer(BufferIntent::GPUOnly, sizeof(vec4) * tiles);
 
   cmd.bindPipeline(m_tilePipeline);
   cmd.push(TileData{
@@ -32,7 +32,7 @@ void BoundsPass::dispatch(CommandBuffer& cmd, u32 frameIndex, u32 particleCount,
   });
   cmd.dispatch(tiles);
 
-  cmd.barrier(scratch, BufferAccess::ShaderWrite, BufferAccess::ShaderWrite);
+  cmd.barrier(scratch, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
 
   cmd.bindPipeline(m_scenePipeline);
   cmd.push(SceneData{
@@ -121,6 +121,7 @@ void RadixSortPass::dispatch(
       .valsInAddr         = valsInAddr,
       .keysOutAddr        = keysOutAddr,
       .valsOutAddr        = valsOutAddr,
+      .histAddr           = histBuf.address(),
       .particleCount      = particleCount,
       .shift              = shift,
       .workgroups         = g_numWorkgroups,
@@ -139,8 +140,8 @@ BuildPass::BuildPass(GRF& grf, const std::string& shadersTreeFolder) {
   m_buildShader = grf.compileShader(ShaderType::Compute, std::format("{}/build.gsl", shadersTreeFolder));
   m_buildPipeline = grf.createComputePipeline(m_buildShader);
 
-  m_parentRing = grf.createBufferRing(BufferIntent::GPUOnly, sizeof(u32) * g_maxParticleCount);
-  m_childRing = grf.createBufferRing(BufferIntent::GPUOnly, sizeof(uvec2) * g_maxParticleCount);
+  m_parentRing = grf.createBufferRing(BufferIntent::GPUOnly, sizeof(u32) * 2 * (g_maxParticleCount - 1));
+  m_childRing = grf.createBufferRing(BufferIntent::GPUOnly, sizeof(uvec2) * (g_maxParticleCount - 1));
 }
 
 Buffer& BuildPass::childBuffer(u32 frameIndex) {
@@ -164,11 +165,53 @@ void BuildPass::dispatch(CommandBuffer& cmd, u32 frameIndex, u32 particleCount, 
   cmd.dispatch((particleCount + x - 1) / x);
 }
 
+AggregatePass::AggregatePass(GRF& grf, const std::string& shadersTreeFolder) {
+  std::string dir = std::format("{}/aggregate", shadersTreeFolder);
+
+  m_clearShader = grf.compileShader(ShaderType::Compute, std::format("{}/clear.gsl", dir));
+  m_walkShader = grf.compileShader(ShaderType::Compute, std::format("{}/walk.gsl", dir));
+
+  m_clearPipeline = grf.createComputePipeline(m_clearShader);
+  m_walkPipeline = grf.createComputePipeline(m_walkShader);
+
+  m_visitRing = grf.createBufferRing(BufferIntent::GPUOnly, sizeof(u32) * (g_maxParticleCount - 1));
+  m_aabbRing = grf.createBufferRing(BufferIntent::GPUOnly, sizeof(vec4) * (2 * g_maxParticleCount - 1));
+}
+
+Buffer& AggregatePass::aabbBuffer(u32 frameIndex) {
+  return m_aabbRing[frameIndex];
+}
+
+void AggregatePass::dispatch(CommandBuffer& cmd, u32 frameIndex, WalkData walkData) {
+  walkData.aabbBufAddr = m_aabbRing[frameIndex].address();
+  walkData.visitBufAddr = m_visitRing[frameIndex].address();
+
+  cmd.bindPipeline(m_clearPipeline);
+  cmd.push(ClearData{
+    .visitBufAddr   = walkData.visitBufAddr,
+    .particleCount  = walkData.particleCount
+  });
+  {
+    auto [x, y, z] = m_clearShader.threadGroup();
+    cmd.dispatch((walkData.particleCount + x - 1) / x);
+  }
+
+  cmd.barrier(m_visitRing[frameIndex], BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
+
+  cmd.bindPipeline(m_walkPipeline);
+  cmd.push(walkData);
+  {
+    auto [x, y, z] = m_walkShader.threadGroup();
+    cmd.dispatch((walkData.particleCount + x - 1) / x);
+  }
+}
+
 LVBHTree::LVBHTree(GRF& grf, const std::string& shadersFolderName)
 : m_boundsPass(BoundsPass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
   m_encodePass(EncodePass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
   m_radixSortPass(RadixSortPass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
-  m_buildPass(BuildPass(grf, std::format("{}/{}", SHADERS, shadersFolderName)))
+  m_buildPass(BuildPass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
+  m_aggregatePass(AggregatePass(grf, std::format("{}/{}", SHADERS, shadersFolderName)))
 {}
 
 void LVBHTree::construct(CommandBuffer& cmd, u32 frameIndex, u32 particleCount, u64 posBufAddr) {
@@ -191,4 +234,22 @@ void LVBHTree::construct(CommandBuffer& cmd, u32 frameIndex, u32 particleCount, 
 
   m_radixSortPass.dispatch(cmd, frameIndex, particleCount, mortonBuf.address(), indexBuf.address());
   m_buildPass.dispatch(cmd, frameIndex, particleCount, mortonBuf.address());
+
+  Buffer& childBuf = m_buildPass.childBuffer(frameIndex);
+  Buffer& parentBuf = m_buildPass.parentBuffer(frameIndex);
+
+  cmd.barrier(childBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
+  cmd.barrier(parentBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
+
+  m_aggregatePass.dispatch(cmd, frameIndex, AggregatePass::WalkData{
+    .posBufAddr     = posBufAddr,
+    .indexBufAddr   = indexBuf.address(),
+    .childBufAddr   = childBuf.address(),
+    .parentBufAddr  = parentBuf.address(),
+    .particleCount  = particleCount
+  });
+}
+
+Buffer& LVBHTree::aabbBuffer(u32 frameIndex) {
+  return m_aggregatePass.aabbBuffer(frameIndex);
 }

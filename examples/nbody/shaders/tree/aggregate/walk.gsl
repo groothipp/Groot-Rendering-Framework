@@ -1,0 +1,38 @@
+readonly buffer { vec2  _Pos[];        };
+readonly buffer { uint  _Index[];      };
+readonly buffer { uvec2 _Children[];   };
+readonly buffer { uint  _Parents[];    };
+coherent buffer { vec4  _NodeAABB[];   };
+         buffer { uint  _VisitCount[]; };
+
+push {
+  uint _ParticleCount;
+};
+
+thread_group [256, 1, 1];
+
+void main() {
+  uint k = gl_GlobalInvocationID.x;
+  if (_ParticleCount < 2u || k >= _ParticleCount) return;
+
+  uint leafOffset = _ParticleCount - 1u;
+
+  vec2 p = _Pos[_Index[k]];
+  _NodeAABB[leafOffset + k] = vec4(p, p);
+
+  uint nodeIdx = _Parents[leafOffset + k];
+
+  for (uint depth = 0u; depth < 64u; ++depth) {
+    uint visits = atomicAdd(_VisitCount[nodeIdx], 1u);
+    if (visits == 0u) return;
+
+    uvec2 children = _Children[nodeIdx];
+    vec4 a = _NodeAABB[children.x];
+    vec4 b = _NodeAABB[children.y];
+
+    _NodeAABB[nodeIdx] = vec4(min(a.xy, b.xy), max(a.zw, b.zw));
+
+    if (nodeIdx == 0u) return;
+    nodeIdx = _Parents[nodeIdx];
+  }
+}

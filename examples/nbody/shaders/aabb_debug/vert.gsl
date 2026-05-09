@@ -1,0 +1,25 @@
+readonly buffer { vec4 _NodeAABB[]; };
+
+push {
+  uvec2 _ScreenDims;
+  uint _ParticleCount;
+};
+
+void main() {
+  const vec2 corners[8] = vec2[](
+    vec2(0.0, 0.0), vec2(1.0, 0.0),
+    vec2(1.0, 0.0), vec2(1.0, 1.0),
+    vec2(1.0, 1.0), vec2(0.0, 1.0),
+    vec2(0.0, 1.0), vec2(0.0, 0.0)
+  );
+  const float ar = float(_ScreenDims.x) / float(_ScreenDims.y);
+
+  uint j = gl_VertexIndex % 8;
+  uint i = (gl_VertexIndex - j) / 8;
+
+  vec4 aabb = _NodeAABB[i];
+  vec2 worldPos = mix(aabb.xy, aabb.zw, corners[j]);
+  vec2 clipPos = worldPos / vec2(ar, 1.0);
+
+  gl_Position = vec4(clipPos, 0.0, 1.0);
+}

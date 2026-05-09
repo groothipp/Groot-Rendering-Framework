@@ -15,6 +15,7 @@ int main() {
   });
 
   Particles particles(grf, "particles", g_flightFrames);
+  AABBDebug aabbDebug(grf, "aabb_debug");
   LVBHTree lvbhTree(grf, "tree");
 
   Ring<CommandBuffer> graphCmdRing = grf.createCmdRing(QueueType::Graphics);
@@ -74,6 +75,16 @@ int main() {
         .particleCount  = particleCount
       });
       graphCmd.endProfile();
+
+      if (aabbToggle) {
+        graphCmd.beginProfile("aabb debug");
+        aabbDebug.render(graphCmd, AABBDebug::Data{
+          .aabbBufAddr    = lvbhTree.aabbBuffer(frameIndex).address(),
+          .screenDims     = uvec2(g_windowWidth, g_windowHeight),
+          .particleCount  = particleCount
+        });
+        graphCmd.endProfile();
+      }
     }
 
     grf.gui().beginFrame();

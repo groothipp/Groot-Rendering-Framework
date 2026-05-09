@@ -1,0 +1,12 @@
+readonly buffer { vec4 _NodeAABB[]; };
+
+push {
+  uvec2 _ScreenDims;
+  uint _ParticleCount;
+};
+
+out vec4 _FragColor;
+
+void main() {
+  _FragColor = vec4(1.0);
+}
