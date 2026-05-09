@@ -214,42 +214,47 @@ LVBHTree::LVBHTree(GRF& grf, const std::string& shadersFolderName)
   m_aggregatePass(AggregatePass(grf, std::format("{}/{}", SHADERS, shadersFolderName)))
 {}
 
-void LVBHTree::construct(CommandBuffer& cmd, u32 frameIndex, u32 particleCount, u64 posBufAddr) {
-  m_boundsPass.dispatch(cmd, frameIndex, particleCount, posBufAddr);
+void LVBHTree::construct(CommandBuffer& cmd, const Data& data) {
+  m_boundsPass.dispatch(cmd, data.frameIndex, data.particleCount, data.posBufAddr);
 
-  Buffer& boundsBuf = m_boundsPass.boundsBuffer(frameIndex);
+  Buffer& boundsBuf = m_boundsPass.boundsBuffer(data.frameIndex);
   cmd.barrier(boundsBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
 
-  m_encodePass.dispatch(cmd, frameIndex, EncodePass::Data{
-    .posBufAddr     = posBufAddr,
+  m_encodePass.dispatch(cmd, data.frameIndex, EncodePass::Data{
+    .posBufAddr     = data.posBufAddr,
     .boundsBufAddr  = boundsBuf.address(),
-    .particleCount  = particleCount
+    .particleCount  = data.particleCount
   });
 
-  Buffer& mortonBuf = m_encodePass.mortonBuffer(frameIndex);
-  Buffer& indexBuf = m_encodePass.indexBuffer(frameIndex);
+  Buffer& mortonBuf = m_encodePass.mortonBuffer(data.frameIndex);
+  Buffer& indexBuf = m_encodePass.indexBuffer(data.frameIndex);
 
   cmd.barrier(mortonBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
   cmd.barrier(indexBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
 
-  m_radixSortPass.dispatch(cmd, frameIndex, particleCount, mortonBuf.address(), indexBuf.address());
-  m_buildPass.dispatch(cmd, frameIndex, particleCount, mortonBuf.address());
+  m_radixSortPass.dispatch(cmd, data.frameIndex, data.particleCount, mortonBuf.address(), indexBuf.address());
+  m_buildPass.dispatch(cmd, data.frameIndex, data.particleCount, mortonBuf.address());
 
-  Buffer& childBuf = m_buildPass.childBuffer(frameIndex);
-  Buffer& parentBuf = m_buildPass.parentBuffer(frameIndex);
+  Buffer& childBuf = m_buildPass.childBuffer(data.frameIndex);
+  Buffer& parentBuf = m_buildPass.parentBuffer(data.frameIndex);
 
   cmd.barrier(childBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
   cmd.barrier(parentBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
 
-  m_aggregatePass.dispatch(cmd, frameIndex, AggregatePass::WalkData{
-    .posBufAddr     = posBufAddr,
+  m_aggregatePass.dispatch(cmd, data.frameIndex, AggregatePass::WalkData{
+    .posBufAddr     = data.posBufAddr,
     .indexBufAddr   = indexBuf.address(),
     .childBufAddr   = childBuf.address(),
     .parentBufAddr  = parentBuf.address(),
-    .particleCount  = particleCount
+    .comBufAddr     = data.comBufAddr,
+    .particleCount  = data.particleCount
   });
 }
 
 Buffer& LVBHTree::aabbBuffer(u32 frameIndex) {
   return m_aggregatePass.aabbBuffer(frameIndex);
+}
+
+std::pair<Buffer&, Buffer&> LVBHTree::treeBuffers(u32 frameIndex) {
+  return { m_encodePass.indexBuffer(frameIndex), m_buildPass.childBuffer(frameIndex) };
 }

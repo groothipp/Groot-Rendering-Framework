@@ -3,6 +3,7 @@ readonly buffer { uint  _Index[];      };
 readonly buffer { uvec2 _Children[];   };
 readonly buffer { uint  _Parents[];    };
 coherent buffer { vec4  _NodeAABB[];   };
+coherent buffer { vec4  _NodeCOM[];    };
          buffer { uint  _VisitCount[]; };
 
 push {
@@ -16,9 +17,10 @@ void main() {
   if (_ParticleCount < 2u || k >= _ParticleCount) return;
 
   uint leafOffset = _ParticleCount - 1u;
-
   vec2 p = _Pos[_Index[k]];
+
   _NodeAABB[leafOffset + k] = vec4(p, p);
+  _NodeCOM[leafOffset + k] = vec4(p, 1.0, 0.0);
 
   uint nodeIdx = _Parents[leafOffset + k];
 
@@ -29,8 +31,12 @@ void main() {
     uvec2 children = _Children[nodeIdx];
     vec4 a = _NodeAABB[children.x];
     vec4 b = _NodeAABB[children.y];
+    vec4 ma = _NodeCOM[children.x];
+    vec4 mb = _NodeCOM[children.y];
+    float M = ma.z + mb.z;
 
     _NodeAABB[nodeIdx] = vec4(min(a.xy, b.xy), max(a.zw, b.zw));
+    _NodeCOM[nodeIdx] = vec4((ma.xy + mb.xy) / M, M, 0.0);
 
     if (nodeIdx == 0u) return;
     nodeIdx = _Parents[nodeIdx];

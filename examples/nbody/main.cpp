@@ -7,6 +7,9 @@ const u32     g_windowHeight = 720;
 const u32     g_flightFrames = 2;
 const f32     g_spawnTimerTimeout = 0.01;
 constexpr f32 g_ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
+const f32     g_G = 1e-6;
+const f32     g_theta = 0.5;
+const f32     g_softening = 0.005;
 
 int main() {
   GRF grf(Settings{
@@ -19,6 +22,7 @@ int main() {
   AABBDebug aabbDebug(grf, "aabb_debug");
   Brush brush(grf, "brush");
   LVBHTree lvbhTree(grf, "tree");
+  Physics physics(grf, "physics");
 
   Ring<CommandBuffer> graphCmdRing = grf.createCmdRing(QueueType::Graphics);
   Ring<CommandBuffer> compCmdRing = grf.createCmdRing(QueueType::Compute);
@@ -65,28 +69,45 @@ int main() {
 
     compCmd.begin();
     if (particleCount > 0) {
+      Buffer& comBuf = physics.comBuffer(frameIndex);
+
       compCmd.beginProfile("tree construction");
-      lvbhTree.construct(compCmd, frameIndex, particleCount, prevPosBuf.address());
+      lvbhTree.construct(compCmd, LVBHTree::Data{
+        .frameIndex     = frameIndex,
+        .particleCount  = particleCount,
+        .posBufAddr     = prevPosBuf.address(),
+        .comBufAddr     = comBuf.address()
+      });
       compCmd.endProfile();
+
+      Buffer& aabbBuf = lvbhTree.aabbBuffer(frameIndex);
+
+      compCmd.barrier(aabbBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
+      compCmd.barrier(comBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
+
+      auto [posBuf, velBuf] = particles.buffers(frameIndex);
+      auto [indexBuf, childBuf] = lvbhTree.treeBuffers(frameIndex);
+
+      physics.dispatch(compCmd, frameIndex, Physics::Data{
+        .indexBufAddr   = indexBuf.address(),
+        .childBufAddr   = childBuf.address(),
+        .aabbBufAddr    = aabbBuf.address(),
+        .prevPosBufAddr = prevPosBuf.address(),
+        .prevVelBufAddr = prevVelBuf.address(),
+        .posBufAddr     = posBuf.address(),
+        .velBufAddr     = velBuf.address(),
+        .particleCount  = particleCount,
+        .dt             = dt,
+        .G              = g_G,
+        .theta          = g_theta,
+        .softening      = g_softening
+      });
     }
     compCmd.end();
 
     graphCmd.begin();
     graphCmd.transition(swapchainImage, Layout::Undefined, Layout::ColorAttachmentOptimal);
     graphCmd.beginRendering({ swapchainAttachment });
-
-    if (brushToggle && particleCount < g_maxParticleCount) {
-      auto [x, y] = input.cursorPos();
-      vec2 cursor = vec2(g_ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
-
-      graphCmd.beginProfile("brush");
-      brush.render(graphCmd, Brush::Data{
-        .screenDims = uvec2(g_windowWidth, g_windowHeight),
-        .pos        = cursor,
-        .radius     = static_cast<f32>(spawnRadius) / 1000.0f
-      });
-      graphCmd.endProfile();
-    }
 
     if (particleCount > 0) {
       graphCmd.beginProfile("particles");
@@ -105,6 +126,19 @@ int main() {
         });
         graphCmd.endProfile();
       }
+    }
+
+    if (brushToggle && particleCount < g_maxParticleCount) {
+      auto [x, y] = input.cursorPos();
+      vec2 cursor = vec2(g_ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
+
+      graphCmd.beginProfile("brush");
+      brush.render(graphCmd, Brush::Data{
+        .screenDims = uvec2(g_windowWidth, g_windowHeight),
+        .pos        = cursor,
+        .radius     = static_cast<f32>(spawnRadius) / 1000.0f
+      });
+      graphCmd.endProfile();
     }
 
     grf.gui().beginFrame();

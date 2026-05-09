@@ -193,6 +193,7 @@ public:
     u64 childBufAddr;
     u64 parentBufAddr;
     u64 aabbBufAddr;
+    u64 comBufAddr;
     u64 visitBufAddr;
     u32 particleCount;
   };
@@ -217,6 +218,15 @@ public:
 };
 
 class LVBHTree {
+public:
+  struct Data {
+    u32 frameIndex;
+    u32 particleCount;
+    u64 posBufAddr;
+    u64 comBufAddr;
+  };
+
+private:
   BoundsPass    m_boundsPass;
   EncodePass    m_encodePass;
   RadixSortPass m_radixSortPass;
@@ -225,6 +235,36 @@ class LVBHTree {
 
 public:
   LVBHTree(GRF&, const std::string&);
-  void construct(CommandBuffer&, u32, u32, u64);
+  void construct(CommandBuffer&, const Data&);
   Buffer& aabbBuffer(u32);
+  std::pair<Buffer&, Buffer&> treeBuffers(u32);
+};
+
+class Physics {
+public:
+  struct Data {
+    u64 indexBufAddr;
+    u64 childBufAddr;
+    u64 aabbBufAddr;
+    u64 comBufAddr;
+    u64 prevPosBufAddr;
+    u64 prevVelBufAddr;
+    u64 posBufAddr;
+    u64 velBufAddr;
+    u32 particleCount;
+    f32 dt;
+    f32 G;
+    f32 theta;
+    f32 softening;
+  };
+
+private:
+  Shader          m_forceShader;
+  ComputePipeline m_forcePipeline;
+  Ring<Buffer>    m_comRing;
+
+public:
+  Physics(GRF&, const std::string&);
+  Buffer& comBuffer(u32);
+  void dispatch(CommandBuffer&, u32, Data);
 };

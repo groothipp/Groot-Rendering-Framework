@@ -1,0 +1,75 @@
+readonly buffer   { uint _Index[];      };
+readonly buffer   { uvec2 _Children[];  };
+readonly buffer   { vec4 _NodeAABB[];   };
+readonly buffer   { vec4 _NodeCOM[];    };
+
+readonly buffer   { vec2 _PrevPos[];    };
+readonly buffer   { vec2 _PrevVel[];    };
+writeonly buffer  { vec2 _Pos[];        };
+writeonly buffer  { vec2 _Vel[];        };
+
+push {
+  uint _ParticleCount;
+  float _DT;
+  float _G;
+  float _Theta;
+  float _Softening;
+};
+
+thread_group [256, 1, 1];
+
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  if (i >= _ParticleCount) return;
+
+  uint idx = _Index[i];
+  vec2 pos = _PrevPos[idx];
+  vec2 vel = _PrevVel[idx];
+
+  uint leafOffset = _ParticleCount - 1;
+  uint selfLeaf = leafOffset + i;
+  float s2 = _Softening * _Softening;
+  float t2 = _Theta * _Theta;
+
+  uint sp = 0;
+  uint stack[64];
+  stack[sp++] = 0;
+
+  vec2 a = vec2(0.0);
+  while(sp > 0) {
+    uint nodeIdx = stack[--sp];
+    if (nodeIdx == selfLeaf) continue;
+
+    vec4 com = _NodeCOM[nodeIdx];
+    vec2 r = com.xy - pos;
+    float r2 = dot(r, r) + s2;
+    float M = com.z;
+
+    bool isLeaf = nodeIdx >= leafOffset;
+    bool gravitate = isLeaf;
+
+    if (!isLeaf) {
+      vec4 aabb = _NodeAABB[nodeIdx];
+      vec2 extent = aabb.zw - aabb.xy;
+      float s = max(extent.x, extent.y);
+      gravitate = s * s < t2 * r2;
+    }
+
+    if (gravitate) {
+      float invR = inversesqrt(r2);
+      float invR3 = invR * invR * invR;
+      a += _G * M * invR3 * r;
+      continue;
+    }
+
+    uvec2 c = _Children[nodeIdx];
+    stack[sp++] = c.x;
+    stack[sp++] = c.y;
+  }
+
+  vec2 v = vel + a * _DT;
+  vec2 p = pos + v * _DT;
+
+  _Pos[idx] = p;
+  _Vel[idx] = v;
+}
