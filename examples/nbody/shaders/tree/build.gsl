@@ -1,0 +1,79 @@
+#define INVALID_POINTER 0xFFFFFFFFu
+
+readonly  buffer { uint  _Morton[];   };
+writeonly buffer { uint  _Parents[];  };
+writeonly buffer { uvec2 _Children[]; };
+
+push {
+  uint _ParticleCount;
+};
+
+thread_group [256, 1, 1];
+
+int delta(int i, uint mi, int j) {
+  if (j < 0 || uint(j) >= _ParticleCount) return -1;
+  uint mj = _Morton[j];
+  if (mi == mj)
+    return 32 + 31 - findMSB(uint(i) ^ uint(j));
+  return 31 - findMSB(mi ^ mj);
+}
+
+void determineRange(int idx, out int lower, out int upper) {
+  uint mi = _Morton[idx];
+  int  dL = delta(idx, mi, idx - 1);
+  int  dR = delta(idx, mi, idx + 1);
+  int  d  = (dR >= dL) ? 1 : -1;
+
+  int dMin = min(dL, dR);
+  int lMax = 2;
+  while (delta(idx, mi, idx + lMax * d) > dMin)
+    lMax <<= 1;
+
+  int l = 0;
+  for (int t = lMax >> 1; t > 0; t >>= 1) {
+    if (delta(idx, mi, idx + (l + t) * d) > dMin)
+      l += t;
+  }
+
+  int jdx = idx + l * d;
+  lower   = min(idx, jdx);
+  upper   = max(idx, jdx);
+}
+
+int findSplit(int first, int last) {
+  uint mFirst = _Morton[first];
+  int  comm   = delta(first, mFirst, last);
+  int  split  = first;
+  int  stride = last - first;
+  do {
+    stride = (stride + 1) >> 1;
+    int newSplit = split + stride;
+    if (newSplit < last) {
+      int sp = delta(first, mFirst, newSplit);
+      if (sp > comm) split = newSplit;
+    }
+  } while (stride > 1);
+  return split;
+}
+
+void main() {
+  uint gid = gl_GlobalInvocationID.x;
+  if (_ParticleCount < 2u || gid >= _ParticleCount - 1u) return;
+
+  uint leafOffset = _ParticleCount - 1u;
+
+  int first;
+  int last;
+  determineRange(int(gid), first, last);
+  int split = findSplit(first, last);
+
+  uint childA = (split     == first) ? leafOffset + uint(split)     : uint(split);
+  uint childB = (split + 1 == last)  ? leafOffset + uint(split + 1) : uint(split + 1);
+
+  _Children[gid]   = uvec2(childA, childB);
+  _Parents[childA] = gid;
+  _Parents[childB] = gid;
+
+  if (gid == 0u)
+    _Parents[0] = INVALID_POINTER;
+}

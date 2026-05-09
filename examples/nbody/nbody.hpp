@@ -127,10 +127,33 @@ public:
   void dispatch(CommandBuffer&, u32, u32, u64, u64);
 };
 
+class BuildPass {
+public:
+  struct Data {
+    u64 mortonBufAddr;
+    u64 parentBufAddr;
+    u64 childBufAddr;
+    u32 particleCount;
+  };
+
+private:
+  Shader          m_buildShader;
+  ComputePipeline m_buildPipeline;
+  Ring<Buffer>    m_parentRing;
+  Ring<Buffer>    m_childRing;
+
+public:
+  BuildPass(GRF&, const std::string&);
+  Buffer& parentBuffer(u32);
+  Buffer& childBuffer(u32);
+  void dispatch(CommandBuffer&, u32, u32, u64);
+};
+
 class LVBHTree {
   BoundsPass    m_boundsPass;
   EncodePass    m_encodePass;
   RadixSortPass m_radixSortPass;
+  BuildPass     m_buildPass;
 
 public:
   LVBHTree(GRF&, const std::string&);
