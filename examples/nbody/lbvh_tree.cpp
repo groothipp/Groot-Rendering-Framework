@@ -206,7 +206,7 @@ void AggregatePass::dispatch(CommandBuffer& cmd, u32 frameIndex, WalkData walkDa
   }
 }
 
-LVBHTree::LVBHTree(GRF& grf, const std::string& shadersFolderName)
+LBVHTree::LBVHTree(GRF& grf, const std::string& shadersFolderName)
 : m_boundsPass(BoundsPass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
   m_encodePass(EncodePass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
   m_radixSortPass(RadixSortPass(grf, std::format("{}/{}", SHADERS, shadersFolderName))),
@@ -214,7 +214,7 @@ LVBHTree::LVBHTree(GRF& grf, const std::string& shadersFolderName)
   m_aggregatePass(AggregatePass(grf, std::format("{}/{}", SHADERS, shadersFolderName)))
 {}
 
-void LVBHTree::construct(CommandBuffer& cmd, const Data& data) {
+void LBVHTree::construct(CommandBuffer& cmd, const Data& data) {
   m_boundsPass.dispatch(cmd, data.frameIndex, data.particleCount, data.posBufAddr);
 
   Buffer& boundsBuf = m_boundsPass.boundsBuffer(data.frameIndex);
@@ -251,10 +251,10 @@ void LVBHTree::construct(CommandBuffer& cmd, const Data& data) {
   });
 }
 
-Buffer& LVBHTree::aabbBuffer(u32 frameIndex) {
+Buffer& LBVHTree::aabbBuffer(u32 frameIndex) {
   return m_aggregatePass.aabbBuffer(frameIndex);
 }
 
-std::pair<Buffer&, Buffer&> LVBHTree::treeBuffers(u32 frameIndex) {
+std::pair<Buffer&, Buffer&> LBVHTree::treeBuffers(u32 frameIndex) {
   return { m_encodePass.indexBuffer(frameIndex), m_buildPass.childBuffer(frameIndex) };
 }

@@ -14,6 +14,12 @@ push {
   float _G;
   float _Theta;
   float _Softening;
+  float _Gamma;
+  float _K;
+  float _KickC;
+  float _R0;
+  float _MaxV;
+  float _MaxA;
 };
 
 thread_group [256, 1, 1];
@@ -54,6 +60,27 @@ void main() {
       float s = max(extent.x, extent.y);
       gravitate = s * s < t2 * r2;
     }
+    else {
+      uint j = _Index[nodeIdx - leafOffset];
+      vec2 jPos = _PrevPos[j];
+      vec2 jVel = _PrevVel[j];
+
+      vec2 rRel = jPos - pos;
+      float rRelLen = length(rRel);
+      if (rRelLen < 1e-6) continue;
+
+      vec2 vRel = jVel - vel;
+      vec2 dir = rRel / rRelLen;
+
+      if (rRelLen < _R0) {
+        a += _K * (rRelLen - _R0) * dir;
+
+        float overlap = (_R0 - rRelLen) / _R0;
+        a += -_KickC * _K * overlap * overlap * overlap * dir;
+
+        a += _Gamma * dot(vRel, dir) * dir;
+      }
+    }
 
     if (gravitate) {
       float invR = inversesqrt(r2);
@@ -67,7 +94,14 @@ void main() {
     stack[sp++] = c.y;
   }
 
+  float aMag = length(a);
+  if (aMag > _MaxA) a *= _MaxA / aMag;
+
   vec2 v = vel + a * _DT;
+
+  float vMag = length(v);
+  if (vMag > _MaxV) v *= _MaxV / vMag;
+
   vec2 p = pos + v * _DT;
 
   _Pos[idx] = p;

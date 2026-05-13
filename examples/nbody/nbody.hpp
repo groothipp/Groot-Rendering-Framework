@@ -10,6 +10,7 @@ using namespace grf;
 static const u32 g_maxParticleCount = 1000000;
 static const i32 g_minSpawnRadius = 33;
 static const i32 g_maxSpawnRadius = 100;
+static const f32 g_particleRadius = 0.0095;
 
 class Particles {
   using RealDist = std::uniform_real_distribution<f32>;
@@ -217,7 +218,7 @@ public:
   void dispatch(CommandBuffer&, u32, WalkData);
 };
 
-class LVBHTree {
+class LBVHTree {
 public:
   struct Data {
     u32 frameIndex;
@@ -234,7 +235,7 @@ private:
   AggregatePass m_aggregatePass;
 
 public:
-  LVBHTree(GRF&, const std::string&);
+  LBVHTree(GRF&, const std::string&);
   void construct(CommandBuffer&, const Data&);
   Buffer& aabbBuffer(u32);
   std::pair<Buffer&, Buffer&> treeBuffers(u32);
@@ -256,6 +257,12 @@ public:
     f32 G;
     f32 theta;
     f32 softening;
+    f32 gamma;
+    f32 K;
+    f32 kickC;
+    f32 r0;
+    f32 maxV;
+    f32 maxA;
   };
 
 private:

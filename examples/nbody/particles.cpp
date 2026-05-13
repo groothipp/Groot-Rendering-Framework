@@ -32,12 +32,10 @@ std::pair<Buffer&, Buffer&> Particles::buffers(u32 frameIndex) {
 }
 
 void Particles::render(CommandBuffer& cmd, u32 frameIndex, Data particleData) {
-  static const f32 particleRadius = 0.008;
-
   auto [posBuf, velBuf] = buffers(frameIndex);
   particleData.posBufAddr = posBuf.address();
   particleData.velBufAddr = velBuf.address();
-  particleData.particleRadius = particleRadius;
+  particleData.particleRadius = g_particleRadius;
 
   cmd.bindPipeline(m_pipeline);
   cmd.push(particleData);
@@ -55,18 +53,42 @@ void Particles::reset(u32 flightFrames) {
 u32 Particles::spawn(vec2 center, u32 particleCount, u32 flightFrames, f32 spawnRadius) {
   static constexpr f32  pi            = std::numbers::pi_v<f32>;
   static const u32      spawnDensity  = 150;
+  static const f32      minSep        = 2.0f * g_particleRadius;
+  static const f32      minSepSq      = minSep * minSep;
+  static const u32      maxAttempts   = 50;
 
-  u32 count = spawnDensity * pi * spawnRadius * spawnRadius;
-  count = std::min(count, g_maxParticleCount - particleCount);
+  u32 target = spawnDensity * pi * spawnRadius * spawnRadius;
+  target = std::min(target, g_maxParticleCount - particleCount);
 
   std::vector<vec2> positions;
-  positions.reserve(count);
+  positions.reserve(target);
 
-  for (u32 i = 0; i < count; ++i) {
-    f32 r = spawnRadius * std::sqrt(RealDist(0.0, 1.0)(m_rng));
-    f32 theta = RealDist(0.0, 2.0 * pi)(m_rng);
+  RealDist dist01(0.0, 1.0);
+  RealDist distTheta(0.0, 2.0 * pi);
 
-    positions.emplace_back(center - vec2(r * cos(theta), r * sin(theta)));
+  for (u32 i = 0; i < target; ++i) {
+    bool placed = false;
+    for (u32 attempt = 0; attempt < maxAttempts; ++attempt) {
+      f32 r = spawnRadius * std::sqrt(dist01(m_rng));
+      f32 theta = distTheta(m_rng);
+      vec2 candidate = center - vec2(r * cos(theta), r * sin(theta));
+
+      bool valid = true;
+      for (const auto& p : positions) {
+        vec2 d = candidate - p;
+        if (d.x * d.x + d.y * d.y < minSepSq) {
+          valid = false;
+          break;
+        }
+      }
+
+      if (valid) {
+        positions.push_back(candidate);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) break;
   }
 
   for (u32 i = 0; i < flightFrames; ++i)

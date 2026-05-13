@@ -7,9 +7,8 @@ const u32     g_windowHeight = 720;
 const u32     g_flightFrames = 2;
 const f32     g_spawnTimerTimeout = 0.01;
 constexpr f32 g_ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
-const f32     g_G = 1e-6;
+const f32     g_G = 2e-4;
 const f32     g_theta = 0.5;
-const f32     g_softening = 0.005;
 
 int main() {
   GRF grf(Settings{
@@ -21,7 +20,7 @@ int main() {
   Particles particles(grf, "particles", g_flightFrames);
   AABBDebug aabbDebug(grf, "aabb_debug");
   Brush brush(grf, "brush");
-  LVBHTree lvbhTree(grf, "tree");
+  LBVHTree lbvhTree(grf, "tree");
   Physics physics(grf, "physics");
 
   Ring<CommandBuffer> graphCmdRing = grf.createCmdRing(QueueType::Graphics);
@@ -38,6 +37,12 @@ int main() {
   f32 spawnTimer = g_spawnTimerTimeout;
   i32 spawnRadius = (g_minSpawnRadius + g_maxSpawnRadius) / 2;
   bool brushToggle = false;
+  f32 gamma = 0.5;
+  f32 K = 75.0;
+  f32 kickC = 1.0;
+  f32 r0 = 2.0 * g_particleRadius;
+  f32 maxV = 2.0;
+  f32 maxA = 60.0;
 
   while (grf.running([&]() { return input.isJustPressed(Key::Escape); })) {
     auto [frameIndex, dt] = grf.beginFrame();
@@ -72,7 +77,7 @@ int main() {
       Buffer& comBuf = physics.comBuffer(frameIndex);
 
       compCmd.beginProfile("tree construction");
-      lvbhTree.construct(compCmd, LVBHTree::Data{
+      lbvhTree.construct(compCmd, LBVHTree::Data{
         .frameIndex     = frameIndex,
         .particleCount  = particleCount,
         .posBufAddr     = prevPosBuf.address(),
@@ -80,13 +85,13 @@ int main() {
       });
       compCmd.endProfile();
 
-      Buffer& aabbBuf = lvbhTree.aabbBuffer(frameIndex);
+      Buffer& aabbBuf = lbvhTree.aabbBuffer(frameIndex);
 
       compCmd.barrier(aabbBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
       compCmd.barrier(comBuf, BufferAccess::ShaderWrite, BufferAccess::ShaderRead);
 
       auto [posBuf, velBuf] = particles.buffers(frameIndex);
-      auto [indexBuf, childBuf] = lvbhTree.treeBuffers(frameIndex);
+      auto [indexBuf, childBuf] = lbvhTree.treeBuffers(frameIndex);
 
       physics.dispatch(compCmd, frameIndex, Physics::Data{
         .indexBufAddr   = indexBuf.address(),
@@ -100,7 +105,13 @@ int main() {
         .dt             = dt,
         .G              = g_G,
         .theta          = g_theta,
-        .softening      = g_softening
+        .softening      = r0,
+        .gamma          = gamma * std::sqrt(2.0f * K),
+        .K              = K,
+        .kickC          = kickC,
+        .r0             = r0,
+        .maxV           = maxV,
+        .maxA           = maxA
       });
     }
     compCmd.end();
@@ -120,7 +131,7 @@ int main() {
       if (aabbToggle) {
         graphCmd.beginProfile("aabb debug");
         aabbDebug.render(graphCmd, AABBDebug::Data{
-          .aabbBufAddr    = lvbhTree.aabbBuffer(frameIndex).address(),
+          .aabbBufAddr    = lbvhTree.aabbBuffer(frameIndex).address(),
           .screenDims     = uvec2(g_windowWidth, g_windowHeight),
           .particleCount  = particleCount
         });
@@ -149,6 +160,12 @@ int main() {
       ImGui::SameLine(0.0, 40.0);
       ImGui::Text("%d", particleCount);
       ImGui::Checkbox("AABB Visuals", &aabbToggle);
+      ImGui::SliderFloat("Gamma", &gamma, 0.1, 1.0);
+      ImGui::SliderFloat("K", &K, 1.0, 150.0);
+      ImGui::SliderFloat("KickC", &kickC, 0.0, 5.0);
+      ImGui::SliderFloat("r0", &r0, 0.5 * g_particleRadius, 5.0 * g_particleRadius);
+      ImGui::SliderFloat("MaxV", &maxV, 0.05, 5.0);
+      ImGui::SliderFloat("MaxA", &maxA, 20.0, 200.0);
       bool shouldReset = ImGui::Button("reset", ImVec2(100.0, 25.0));
       if (brushToggle)
         ImGui::SliderInt("radius", &spawnRadius, g_minSpawnRadius, g_maxSpawnRadius);

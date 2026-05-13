@@ -36,7 +36,7 @@ void main() {
     float M = ma.z + mb.z;
 
     _NodeAABB[nodeIdx] = vec4(min(a.xy, b.xy), max(a.zw, b.zw));
-    _NodeCOM[nodeIdx] = vec4((ma.xy + mb.xy) / M, M, 0.0);
+    _NodeCOM[nodeIdx] = vec4((ma.xy * ma.z + mb.xy * mb.z) / M, M, 0.0);
 
     if (nodeIdx == 0u) return;
     nodeIdx = _Parents[nodeIdx];
