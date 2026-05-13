@@ -250,6 +250,7 @@ struct ImageData {
   std::vector<std::byte> bytes;
   uint32_t               width;
   uint32_t               height;
+  Format                 format;
 };
 
 struct BlendState {
