@@ -20,6 +20,7 @@ public:
 
   void beginFrame();
   void render(CommandBuffer&);
+  void renderPlatformWindows();
 
   bool wantsMouse() const;
   bool wantsKeyboard() const;

@@ -98,6 +98,7 @@ GUI::Impl::Impl(
 
   ImGuiIO& io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
   applyGreenBrownStyle();
@@ -124,6 +125,11 @@ GUI::Impl::Impl(
   info.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount    = 1;
   info.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_colorFormat;
 
+  info.PipelineInfoForViewports.MSAASamples                                = VK_SAMPLE_COUNT_1_BIT;
+  info.PipelineInfoForViewports.PipelineRenderingCreateInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+  info.PipelineInfoForViewports.PipelineRenderingCreateInfo.colorAttachmentCount    = 1;
+  info.PipelineInfoForViewports.PipelineRenderingCreateInfo.pColorAttachmentFormats = &m_colorFormat;
+
   ImGui_ImplVulkan_Init(&info);
 }
 
@@ -140,7 +146,7 @@ void GUI::Impl::beginFrame() {
   ImGui_ImplVulkan_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
-  ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+  ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingOverCentralNode);
   m_inFrame = true;
 }
 
@@ -160,6 +166,14 @@ void GUI::render(CommandBuffer& cmd) {
   ImDrawData* drawData = ImGui::GetDrawData();
   if (drawData == nullptr || drawData->CmdListsCount == 0) return;
   ImGui_ImplVulkan_RenderDrawData(drawData, cmd.m_impl->m_buffer);
+}
+
+void GUI::renderPlatformWindows() {
+  ImGuiIO& io = ImGui::GetIO();
+  if ((io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) == 0) return;
+
+  ImGui::UpdatePlatformWindows();
+  ImGui::RenderPlatformWindowsDefault();
 }
 
 bool GUI::wantsMouse() const {

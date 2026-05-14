@@ -95,6 +95,8 @@ void GRF::waitForResourceUpdates() {
 }
 
 void GRF::endFrame() {
+  m_impl->m_gui->renderPlatformWindows();
+
   m_impl->m_frameIndex = (m_impl->m_frameIndex + 1) % m_impl->m_settings.flightFrames;
   m_impl->m_endTime = GRF::Impl::Clock::now();
   m_impl->m_resourceManager->drain();
