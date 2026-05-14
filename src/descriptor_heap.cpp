@@ -222,6 +222,10 @@ uint32_t DescriptorHeap::addImg2DStorageOnly(vk::ImageView view) {
   return slot;
 }
 
+void DescriptorHeap::removeImg2DStorageOnly(uint32_t slot) {
+  releaseSlot(g_img2DBinding, slot);
+}
+
 void DescriptorHeap::addSampler(std::shared_ptr<Sampler::Impl> impl) {
   uint32_t slot = acquireSlot(g_samplerBinding);
 

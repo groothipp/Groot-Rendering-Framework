@@ -64,6 +64,9 @@ public:
   explicit Impl(const Settings&);
   ~Impl();
 
+  void destroySwapchain();
+  void recreateSwapchain();
+
 private:
   void createWindow();
   void createInstance();
@@ -71,7 +74,7 @@ private:
   void chooseGPU(const std::vector<const char *>&);
   void getQueueFamilyIndices();
   void createDevice(std::vector<const char *>&);
-  void createSwapchain();
+  void createSwapchain(vk::SwapchainKHR oldSwapchain = nullptr);
   void createPipelineLayout();
   void createTimelineSemaphores();
   void createCommandPools();

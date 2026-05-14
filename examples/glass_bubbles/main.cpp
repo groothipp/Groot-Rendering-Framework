@@ -117,8 +117,10 @@ int main() {
       LightDial("Light", &lightAngle);
     ImGui::End();
 
+    auto [screenW, screenH] = grf.screenDims();
+
     if (!grf.gui().wantsMouse() && input.isPressed(MouseButton::Left)) {
-      const f32 ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
+      const f32 ar = static_cast<f32>(screenW) / static_cast<f32>(screenH);
 
       const auto circleSDF = [&](vec2 pos, vec2 center, f32 r) {
         return glm::distance(pos, center) - r;
@@ -131,8 +133,8 @@ int main() {
 
       auto [x, y] = input.cursorPos();
       vec2 cursor = vec2(
-        ar * (2.0 * static_cast<f32>(x) / static_cast<f32>(g_windowWidth) - 1.0),
-        2.0 * static_cast<f32>(y) / static_cast<f32>(g_windowHeight) - 1.0
+        ar * (2.0 * static_cast<f32>(x) / static_cast<f32>(screenW) - 1.0),
+        2.0 * static_cast<f32>(y) / static_cast<f32>(screenH) - 1.0
       );
 
       f32 sdf1 = circleSDF(cursor, pos1, radius1);
@@ -170,7 +172,7 @@ int main() {
       .pos1         = pos1,
       .pos2         = pos2,
       .lightDir     = vec2(std::cos(lightAngle), -std::sin(lightAngle)),
-      .screenDims   = uvec2(g_windowWidth, g_windowHeight),
+      .screenDims   = uvec2(screenW, screenH),
       .texIndex     = background.heapIndex(),
       .samplerIndex = sampler.heapIndex(),
       .liquidness   = liquidness,

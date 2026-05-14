@@ -60,13 +60,27 @@ Profiler& GRF::profiler() {
 }
 
 SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
-  auto [res, index] = m_impl->m_device.acquireNextImageKHR(
-    m_impl->m_swapchain, m_impl->g_timeout,
-    signalOnAcquire.m_impl->m_semaphore, nullptr
-  );
-  if (res != vk::Result::eSuccess)
+  int fbw = 0, fbh = 0;
+  glfwGetFramebufferSize(m_impl->m_window, &fbw, &fbh);
+  if (fbw > 0 && fbh > 0 &&
+      (static_cast<uint32_t>(fbw) != m_impl->m_swapchainExtent.width ||
+       static_cast<uint32_t>(fbh) != m_impl->m_swapchainExtent.height))
+    m_impl->recreateSwapchain();
+
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    auto [res, index] = m_impl->m_device.acquireNextImageKHR(
+      m_impl->m_swapchain, m_impl->g_timeout,
+      signalOnAcquire.m_impl->m_semaphore, nullptr
+    );
+    if (res == vk::Result::eSuccess || res == vk::Result::eSuboptimalKHR)
+      return SwapchainImage(m_impl->m_swapchainImages[index]);
+    if (res == vk::Result::eErrorOutOfDateKHR) {
+      m_impl->recreateSwapchain();
+      continue;
+    }
     GRF_PANIC("Failed to get next swapchain image: {}", vk::to_string(res));
-  return SwapchainImage(m_impl->m_swapchainImages[index]);
+  }
+  GRF_PANIC("Failed to acquire swapchain image after swapchain recreation");
 }
 
 void GRF::present(const SwapchainImage& image, std::span<const Semaphore> waits) {
@@ -85,8 +99,18 @@ void GRF::present(const SwapchainImage& image, std::span<const Semaphore> waits)
     .pImageIndices      = &index
   });
 
-  if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR)
+  if (res == vk::Result::eErrorOutOfDateKHR || res == vk::Result::eSuboptimalKHR) {
+    m_impl->recreateSwapchain();
+    return;
+  }
+  if (res != vk::Result::eSuccess)
     GRF_PANIC("Failed to present swapchain image: {}", vk::to_string(res));
+}
+
+std::pair<uint32_t, uint32_t> GRF::screenDims() const {
+  int w = 0, h = 0;
+  glfwGetWindowSize(m_impl->m_window, &w, &h);
+  return { static_cast<uint32_t>(w), static_cast<uint32_t>(h) };
 }
 
 void GRF::waitForResourceUpdates() {

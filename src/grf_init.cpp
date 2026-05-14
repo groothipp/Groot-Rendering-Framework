@@ -33,7 +33,7 @@ void GRF::Impl::createWindow() {
 
   if (!glfwInit()) GRF_PANIC("Failed to initialize GLFW");
 
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
@@ -271,7 +271,7 @@ void GRF::Impl::createDevice(std::vector<const char *>& requiredExtensions) {
   });
 }
 
-void GRF::Impl::createSwapchain() {
+void GRF::Impl::createSwapchain(vk::SwapchainKHR oldSwapchain) {
   const vk::SurfaceCapabilitiesKHR caps = m_gpu.getSurfaceCapabilitiesKHR(m_surface);
 
   const vk::Format requestedFormat = static_cast<vk::Format>(m_settings.swapchainFormat);
@@ -342,7 +342,7 @@ void GRF::Impl::createSwapchain() {
     .compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque,
     .presentMode      = chosenPresentMode,
     .clipped          = vk::True,
-    .oldSwapchain     = nullptr,
+    .oldSwapchain     = oldSwapchain,
   });
 
   const bool storageSupported = static_cast<bool>(usage & vk::ImageUsageFlagBits::eStorage);
@@ -367,6 +367,44 @@ void GRF::Impl::createSwapchain() {
 
     m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view, i, heapIndex));
   }
+}
+
+void GRF::Impl::destroySwapchain() {
+  for (const auto& img : m_swapchainImages) {
+    if (img->m_heapIndexStorage != 0xFFFFFFFF)
+      m_descriptorHeap->removeImg2DStorageOnly(img->m_heapIndexStorage);
+    m_device.destroyImageView(img->m_view);
+  }
+  m_swapchainImages.clear();
+
+  if (m_swapchain) {
+    m_device.destroySwapchainKHR(m_swapchain);
+    m_swapchain = nullptr;
+  }
+}
+
+void GRF::Impl::recreateSwapchain() {
+  int width = 0, height = 0;
+  glfwGetFramebufferSize(m_window, &width, &height);
+  while ((width == 0 || height == 0) && !glfwWindowShouldClose(m_window)) {
+    glfwWaitEvents();
+    glfwGetFramebufferSize(m_window, &width, &height);
+  }
+  if (width == 0 || height == 0) return;
+
+  m_device.waitIdle();
+
+  for (const auto& img : m_swapchainImages) {
+    if (img->m_heapIndexStorage != 0xFFFFFFFF)
+      m_descriptorHeap->removeImg2DStorageOnly(img->m_heapIndexStorage);
+    m_device.destroyImageView(img->m_view);
+  }
+  m_swapchainImages.clear();
+
+  vk::SwapchainKHR old = m_swapchain;
+  m_swapchain = nullptr;
+  createSwapchain(old);
+  if (old) m_device.destroySwapchainKHR(old);
 }
 
 void GRF::Impl::createTimelineSemaphores() {

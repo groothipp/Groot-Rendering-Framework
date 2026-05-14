@@ -6,7 +6,6 @@ const u32     g_windowWidth = 1280;
 const u32     g_windowHeight = 720;
 const u32     g_flightFrames = 2;
 const f32     g_spawnTimerTimeout = 0.01;
-constexpr f32 g_ar = static_cast<f32>(g_windowWidth) / static_cast<f32>(g_windowHeight);
 const f32     g_G = 2e-4;
 const f32     g_theta = 0.5;
 
@@ -46,6 +45,9 @@ int main() {
 
   while (grf.running([&]() { return input.isJustPressed(Key::Escape); })) {
     auto [frameIndex, dt] = grf.beginFrame();
+
+    auto [screenW, screenH] = grf.screenDims();
+    const f32 ar = static_cast<f32>(screenW) / static_cast<f32>(screenH);
 
     if (!grf.gui().wantsKeyboard() && input.isJustPressed(Key::S))
       brushToggle = !brushToggle;
@@ -123,7 +125,7 @@ int main() {
     if (particleCount > 0) {
       graphCmd.beginProfile("particles");
       particles.render(graphCmd, frameIndex, Particles::Data{
-        .screenDims     = { g_windowWidth, g_windowHeight },
+        .screenDims     = { screenW, screenH },
         .particleCount  = particleCount
       });
       graphCmd.endProfile();
@@ -132,7 +134,7 @@ int main() {
         graphCmd.beginProfile("aabb debug");
         aabbDebug.render(graphCmd, AABBDebug::Data{
           .aabbBufAddr    = lbvhTree.aabbBuffer(frameIndex).address(),
-          .screenDims     = uvec2(g_windowWidth, g_windowHeight),
+          .screenDims     = uvec2(screenW, screenH),
           .particleCount  = particleCount
         });
         graphCmd.endProfile();
@@ -141,11 +143,11 @@ int main() {
 
     if (brushToggle && particleCount < g_maxParticleCount) {
       auto [x, y] = input.cursorPos();
-      vec2 cursor = vec2(g_ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
+      vec2 cursor = vec2(ar * (2.0 * x / screenW - 1.0), 2.0 * y / screenH - 1.0);
 
       graphCmd.beginProfile("brush");
       brush.render(graphCmd, Brush::Data{
-        .screenDims = uvec2(g_windowWidth, g_windowHeight),
+        .screenDims = uvec2(screenW, screenH),
         .pos        = cursor,
         .radius     = static_cast<f32>(spawnRadius) / 1000.0f
       });
@@ -197,7 +199,7 @@ int main() {
       spawnTimer == g_spawnTimerTimeout
     ) {
       auto [x, y] = input.cursorPos();
-      vec2 cursor = vec2(g_ar * (2.0 * x / g_windowWidth - 1.0), 2.0 * y / g_windowHeight - 1.0);
+      vec2 cursor = vec2(ar * (2.0 * x / screenW - 1.0), 2.0 * y / screenH - 1.0);
 
       particleCount += particles.spawn(
         cursor, particleCount, g_flightFrames, static_cast<f32>(spawnRadius) / 1000.f

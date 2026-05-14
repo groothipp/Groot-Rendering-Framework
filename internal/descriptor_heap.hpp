@@ -42,6 +42,7 @@ public:
   void addImg3D(std::shared_ptr<Image>);
   void addSampler(std::shared_ptr<Sampler::Impl>);
   uint32_t addImg2DStorageOnly(vk::ImageView);
+  void     removeImg2DStorageOnly(uint32_t slot);
 
   void releaseSlot(uint32_t binding, uint32_t slot);
 

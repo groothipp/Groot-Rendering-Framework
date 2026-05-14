@@ -29,6 +29,7 @@ public:
 
   bool running(std::function<bool()> endCond = [](){ return false; }) const;
   std::pair<uint32_t, float> beginFrame();
+  std::pair<uint32_t, uint32_t> screenDims() const;
   void waitForResourceUpdates();
 
   Input&    input();
