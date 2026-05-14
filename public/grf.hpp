@@ -31,6 +31,7 @@ public:
   std::pair<uint32_t, float> beginFrame();
   std::pair<uint32_t, uint32_t> screenDims() const;
   void waitForResourceUpdates();
+  void resizeCallback(std::function<void(uint32_t, uint32_t)> callback);
 
   Input&    input();
   GUI&      gui();

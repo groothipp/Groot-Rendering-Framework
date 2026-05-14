@@ -113,6 +113,10 @@ std::pair<uint32_t, uint32_t> GRF::screenDims() const {
   return { static_cast<uint32_t>(w), static_cast<uint32_t>(h) };
 }
 
+void GRF::resizeCallback(std::function<void(uint32_t, uint32_t)> callback) {
+  m_impl->m_resizeCallback = std::move(callback);
+}
+
 void GRF::waitForResourceUpdates() {
   m_impl->m_resourceManager->waitForUpdates();
   m_impl->m_endTime = GRF::Impl::Clock::now();

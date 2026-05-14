@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <chrono>
+#include <functional>
 
 namespace grf {
 
@@ -61,6 +62,8 @@ public:
   uint64_t                          m_frameIndex = 0;
   TimePoint                         m_startTime;
   TimePoint                         m_endTime;
+
+  std::function<void(uint32_t, uint32_t)> m_resizeCallback;
 
 public:
   explicit Impl(const Settings&);

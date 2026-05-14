@@ -438,6 +438,9 @@ void GRF::Impl::recreateSwapchain() {
   m_swapchain = nullptr;
   createSwapchain(old);
   if (old) m_device.destroySwapchainKHR(old);
+
+  if (m_resizeCallback)
+    m_resizeCallback(m_swapchainExtent.width, m_swapchainExtent.height);
 }
 
 void GRF::Impl::createTimelineSemaphores() {
