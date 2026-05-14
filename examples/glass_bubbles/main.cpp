@@ -57,7 +57,8 @@ const u32 g_windowHeight = 720;
 
 int main() {
   GRF grf(Settings{
-    .windowSize = { g_windowWidth, g_windowHeight }
+    .windowTitle  = "GRF Example: Glass Bubbles",
+    .windowSize   = { g_windowWidth, g_windowHeight }
   });
 
   Shader vertShader = grf.compileShader(ShaderType::Vertex, std::format("{}/vert.gsl", SHADERS));

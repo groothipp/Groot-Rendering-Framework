@@ -35,7 +35,7 @@ void GRF::Impl::createWindow() {
 
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+  glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
   auto [width, height] = m_settings.windowSize;
   m_window = glfwCreateWindow(width, height, m_settings.windowTitle.c_str(), nullptr, nullptr);
