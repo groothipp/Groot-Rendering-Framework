@@ -1,0 +1,36 @@
+push {
+  vec2  _Pos1;
+  vec2  _Pos2;
+  vec2  _LightDir;
+  uvec2 _ScreenDims;
+  uint  _TexIndex;
+  uint  _SamplerIndex;
+  float _Liquidness;
+  float _Radius1;
+  float _Radius2;
+  float _Blur;
+};
+
+out vec2 _UV;
+out vec2 _NDC;
+
+void main() {
+  const vec2 uvMap[6] = vec2[](
+    vec2(0.0, 0.0),
+    vec2(0.0, 1.0),
+    vec2(1.0, 1.0),
+    vec2(1.0, 1.0),
+    vec2(1.0, 0.0),
+    vec2(0.0, 0.0)
+  );
+
+  const float ar = float(_ScreenDims.x) / float(_ScreenDims.y);
+
+  uint i = gl_VertexIndex;
+  vec2 uv = uvMap[i];
+  vec2 ndc = 2.0 * uv - 1.0;
+
+  gl_Position = vec4(ndc, 0.0, 1.0);
+  _UV = uv;
+  _NDC = ndc * vec2(ar, 1.0);
+}

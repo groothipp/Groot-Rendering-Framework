@@ -164,9 +164,6 @@ target_link_libraries(grf PRIVATE
 )
 
 if(APPLE)
-  # Homebrew's validation layer manifest references its dylib by bare filename,
-  # so dlopen falls back to dyld defaults that don't include Homebrew's lib dir.
-  # Add it to the rpath of any consumer linking grf so VK_LAYER_KHRONOS_validation loads.
   execute_process(
     COMMAND brew --prefix
     OUTPUT_VARIABLE GRF_BREW_PREFIX
@@ -233,6 +230,7 @@ if(GRF_EXAMPLES)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
   set(GRF_EXAMPLES_DIR ${CMAKE_SOURCE_DIR}/examples)
   add_subdirectory(${GRF_EXAMPLES_DIR}/nbody)
+  add_subdirectory(${GRF_EXAMPLES_DIR}/glass_bubbles)
 endif()
 
 install(TARGETS grf

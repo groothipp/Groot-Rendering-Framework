@@ -1,0 +1,108 @@
+push {
+  vec2  _Pos1;
+  vec2  _Pos2;
+  vec2  _LightDir;
+  uvec2 _ScreenDims;
+  uint  _TexIndex;
+  uint  _SamplerIndex;
+  float _Liquidness;
+  float _Radius1;
+  float _Radius2;
+  float _Blur;
+};
+
+in vec2 _UV;
+in vec2 _NDC;
+
+out vec4 _FragColor;
+
+float circleSDF(vec2 pos, vec2 center, float radius) {
+  return length(pos - center) - radius;
+}
+
+float smin(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
+}
+
+float blendedSDF(vec2 p) {
+  return smin(circleSDF(p, _Pos1, _Radius1), circleSDF(p, _Pos2, _Radius2), _Liquidness);
+}
+
+vec2 sdfGradient(vec2 p) {
+  const float h = 0.001;
+  return vec2(
+    blendedSDF(p + vec2(h, 0.0)) - blendedSDF(p - vec2(h, 0.0)),
+    blendedSDF(p + vec2(0.0, h)) - blendedSDF(p - vec2(0.0, h))
+  ) / (2.0 * h);
+}
+
+const vec2 g_blurDirs[8] = vec2[](
+  vec2( 1.0,         0.0),
+  vec2( 0.70710678,  0.70710678),
+  vec2( 0.0,         1.0),
+  vec2(-0.70710678,  0.70710678),
+  vec2(-1.0,         0.0),
+  vec2(-0.70710678, -0.70710678),
+  vec2( 0.0,        -1.0),
+  vec2( 0.70710678, -0.70710678)
+);
+
+vec4 blurredSample(vec2 uv) {
+  const float maxRadius = 0.02;
+  float radius = _Blur * maxRadius;
+
+  vec4 sum = texture(sampler2D(grf_Tex2D[_TexIndex], grf_Sampler[_SamplerIndex]), uv) * 4.0;
+
+  for (int i = 0; i < 8; i++) {
+    sum += texture(sampler2D(grf_Tex2D[_TexIndex], grf_Sampler[_SamplerIndex]), uv + g_blurDirs[i] * radius * 0.5) * 2.0;
+    sum += texture(sampler2D(grf_Tex2D[_TexIndex], grf_Sampler[_SamplerIndex]), uv + g_blurDirs[i] * radius) * 1.0;
+  }
+
+  return sum / 28.0;
+}
+
+void main() {
+  const float thickness = 0.08;
+  const float edgePull = 0.04;
+  const float chromaticStrength = 0.025;
+  const vec3 glowColor = vec3(1.0, 0.92, 0.78);
+
+  vec4 background = texture(sampler2D(grf_Tex2D[_TexIndex], grf_Sampler[_SamplerIndex]), _UV);
+
+  float sdf1 = circleSDF(_NDC, _Pos1, _Radius1);
+  float sdf2 = circleSDF(_NDC, _Pos2, _Radius2);
+  float blended = smin(sdf1, sdf2, _Liquidness);
+
+  if (blended > 0.0) {
+    _FragColor = background;
+    return;
+  }
+
+  float depth = smoothstep(-thickness, 0.0, blended);
+
+  float ar = float(_ScreenDims.x) / float(_ScreenDims.y);
+  vec2  inwardNDC = -normalize(sdfGradient(_NDC));
+  vec2  inwardUV  = inwardNDC / vec2(2.0 * ar, 2.0);
+
+  vec2 uvOffset = inwardUV * edgePull * depth;
+
+  float dispersion   = smoothstep(1.0 - thickness, 1.0, depth);
+  vec2  chromaOffset = inwardUV * chromaticStrength * dispersion;
+
+  vec4 rSample = blurredSample(_UV + uvOffset - chromaOffset);
+  vec4 gSample = blurredSample(_UV + uvOffset);
+  vec4 bSample = blurredSample(_UV + uvOffset + chromaOffset);
+
+  _FragColor = vec4(rSample.r, gSample.g, bSample.b, gSample.a);
+
+  vec2  outwardNDC = -inwardNDC;
+  float backlight  = pow(max(0.0, dot(outwardNDC, -_LightDir)), 1.5);
+  float frontlight = pow(max(0.0, dot(outwardNDC,  _LightDir)), 2.0) * 0.33;
+
+  float rim          = smoothstep(0.97, 1.0, depth);
+  float lightFalloff = (backlight + frontlight) * rim;
+
+  _FragColor.rgb += glowColor * lightFalloff * 0.6;
+  _FragColor.a    = max(_FragColor.a, lightFalloff);
+}
