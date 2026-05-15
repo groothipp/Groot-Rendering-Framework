@@ -47,6 +47,8 @@ void Allocator::destroy() {
   for (auto& [id, weakImg] : m_images) {
     if (auto image = weakImg.lock()) {
       m_device.destroyImageView(image->m_view);
+      if (image->m_storageView != nullptr)
+        m_device.destroyImageView(image->m_storageView);
       vmaDestroyImage(m_allocator, image->m_image, image->m_allocation);
     }
   }
@@ -78,6 +80,8 @@ void Allocator::destroyBuffer(const Grave& grave) {
 void Allocator::destroyImage(const Grave& grave) {
   std::lock_guard<std::mutex> g(m_mutex);
   m_device.destroyImageView(grave.view);
+  if (grave.storageView != nullptr)
+    m_device.destroyImageView(grave.storageView);
   vmaDestroyImage(m_allocator, grave.image, grave.allocation);
   m_images.erase(grave.imageId);
 }

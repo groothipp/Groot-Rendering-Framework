@@ -96,26 +96,44 @@ void DescriptorHeap::addTex3D(std::shared_ptr<Image> impl) {
 }
 
 void DescriptorHeap::addCubemap(std::shared_ptr<Image> impl) {
-  uint32_t slot = acquireSlot(g_cubemapBinding);
+  uint32_t sampledSlot = acquireSlot(g_cubemapBinding);
+  uint32_t storageSlot = acquireSlot(g_cubemapStorageBinding);
 
-  vk::DescriptorImageInfo info{
+  vk::DescriptorImageInfo sampledInfo{
     .imageView    = impl->m_view,
     .imageLayout  = vk::ImageLayout::eShaderReadOnlyOptimal
   };
 
-  vk::WriteDescriptorSet write{
-    .dstSet           = m_set,
-    .dstBinding       = g_cubemapBinding,
-    .dstArrayElement  = slot,
-    .descriptorCount  = 1,
-    .descriptorType   = vk::DescriptorType::eSampledImage,
-    .pImageInfo       = &info
+  vk::DescriptorImageInfo storageInfo{
+    .imageView    = impl->m_storageView,
+    .imageLayout  = vk::ImageLayout::eGeneral
   };
 
-  m_device.updateDescriptorSets(1, &write, 0, nullptr);
+  std::array<vk::WriteDescriptorSet, 2> writes = {
+    vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_cubemapBinding,
+      .dstArrayElement  = sampledSlot,
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eSampledImage,
+      .pImageInfo       = &sampledInfo
+    },
+    vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_cubemapStorageBinding,
+      .dstArrayElement  = storageSlot,
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &storageInfo
+    }
+  };
 
-  impl->m_heapIndexSampled = slot;
+  m_device.updateDescriptorSets(writes, nullptr);
+
+  impl->m_heapIndexSampled = sampledSlot;
   impl->m_sampledBinding   = g_cubemapBinding;
+  impl->m_heapIndexStorage = storageSlot;
+  impl->m_storageBinding   = g_cubemapStorageBinding;
 }
 
 void DescriptorHeap::addImg2D(std::shared_ptr<Image> impl) {
@@ -273,11 +291,12 @@ void DescriptorHeap::createLayout(uint32_t maxTex, uint32_t maxImg, uint32_t max
   m_maxVal[g_cubemapBinding] = maxTex - m_maxVal[g_tex2DBinding] - m_maxVal[g_tex3DBinding];
 
   m_maxVal[g_img2DBinding] = maxImg * 4 / 5;
-  m_maxVal[g_img3DBinding]= maxImg - m_maxVal[g_img2DBinding];
+  m_maxVal[g_img3DBinding]= maxImg * 3 / 20;
+  m_maxVal[g_cubemapStorageBinding] = maxImg - m_maxVal[g_img2DBinding] - m_maxVal[g_img3DBinding];
 
   m_maxVal[g_samplerBinding] = maxSampler;
 
-  const std::array<vk::DescriptorSetLayoutBinding, 6> bindings{
+  const std::array<vk::DescriptorSetLayoutBinding, 7> bindings{
     // grf_Tex2D[]
     vk::DescriptorSetLayoutBinding {
       .binding          = g_tex2DBinding,
@@ -319,6 +338,13 @@ void DescriptorHeap::createLayout(uint32_t maxTex, uint32_t maxImg, uint32_t max
       .descriptorType   = vk::DescriptorType::eSampler,
       .descriptorCount  = m_maxVal[g_samplerBinding],
       .stageFlags       = vk::ShaderStageFlagBits::eAll
+    },
+    // grf_CubemapStorage[]
+    vk::DescriptorSetLayoutBinding {
+      .binding          = g_cubemapStorageBinding,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .descriptorCount  = m_maxVal[g_cubemapStorageBinding],
+      .stageFlags       = vk::ShaderStageFlagBits::eAll
     }
   };
 
@@ -326,7 +352,7 @@ void DescriptorHeap::createLayout(uint32_t maxTex, uint32_t maxImg, uint32_t max
     vk::DescriptorBindingFlagBits::ePartiallyBound |
     vk::DescriptorBindingFlagBits::eUpdateAfterBind;
 
-  std::array<vk::DescriptorBindingFlags, 6> bindingFlags;
+  std::array<vk::DescriptorBindingFlags, 7> bindingFlags;
   bindingFlags.fill(commonFlags);
 
   vk::DescriptorSetLayoutBindingFlagsCreateInfo flagsInfo{

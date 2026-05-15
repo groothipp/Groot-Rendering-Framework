@@ -33,6 +33,7 @@ public:
   VmaAllocation   m_allocation = nullptr;
   vk::Image       m_image = nullptr;
   vk::ImageView   m_view = nullptr;
+  vk::ImageView   m_storageView = nullptr;
   vk::Format      m_format = vk::Format::eR16G16B16A16Sfloat;
   vk::ImageLayout m_layout = vk::ImageLayout::eUndefined;
   QueueType       m_owner = QueueType::Graphics;

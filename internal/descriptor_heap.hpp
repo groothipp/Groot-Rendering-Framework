@@ -15,6 +15,7 @@ public:
   static constexpr uint32_t g_img2DBinding = 3;
   static constexpr uint32_t g_img3DBinding = 4;
   static constexpr uint32_t g_samplerBinding = 5;
+  static constexpr uint32_t g_cubemapStorageBinding = 6;
 
 private:
   vk::Device& m_device;
@@ -23,9 +24,9 @@ private:
   vk::DescriptorPool m_pool = nullptr;
   vk::DescriptorSet m_set = nullptr;
 
-  std::array<uint32_t, 6> m_maxVal = { 0 };
-  std::array<uint32_t, 6> m_nextIndex = { 0 };
-  std::array<std::vector<uint32_t>, 6> m_freeSlots;
+  std::array<uint32_t, 7> m_maxVal = { 0 };
+  std::array<uint32_t, 7> m_nextIndex = { 0 };
+  std::array<std::vector<uint32_t>, 7> m_freeSlots;
 
 public:
   DescriptorHeap(const vk::PhysicalDevice&, vk::Device&);

@@ -210,6 +210,7 @@ Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
     .type       = vk::ImageType::e2D,
     .format     = static_cast<vk::Format>(format),
     .usage      = vk::ImageUsageFlagBits::eSampled      |
+                  vk::ImageUsageFlagBits::eStorage      |
                   vk::ImageUsageFlagBits::eTransferSrc  |
                   vk::ImageUsageFlagBits::eTransferDst,
     .width      = width,
@@ -220,6 +221,23 @@ Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
   img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
     .image      = img->m_image,
     .viewType   = vk::ImageViewType::eCube,
+    .format     = img->m_format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = {
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .levelCount = 1,
+      .layerCount = 6
+    }
+  });
+
+  img->m_storageView = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+    .image      = img->m_image,
+    .viewType   = vk::ImageViewType::e2DArray,
     .format     = img->m_format,
     .components = {
       .r = vk::ComponentSwizzle::eIdentity,

@@ -26,6 +26,7 @@ struct Grave {
   vk::Buffer              buffer = nullptr;
   vk::Image               image = nullptr;
   vk::ImageView           view = nullptr;
+  vk::ImageView           storageView = nullptr;
   vk::Sampler             sampler = nullptr;
   vk::Pipeline            pipeline = nullptr;
   vk::Fence               fence = nullptr;

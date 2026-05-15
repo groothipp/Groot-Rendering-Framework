@@ -155,6 +155,7 @@ public:
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
+  uint32_t storageHeapIndex() const;
   void write(CubeFace, std::span<const std::byte>, Layout);
 
 private:

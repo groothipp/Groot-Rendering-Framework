@@ -98,6 +98,7 @@ Image::~Image() {
     .retireValues   = m_lastUseValues,
     .image          = m_image,
     .view           = m_view,
+    .storageView    = m_storageView,
     .allocation     = m_allocation,
     .imageId        = m_id,
     .storageBinding = m_storageBinding,
@@ -255,6 +256,10 @@ Format Cubemap::format() const {
 
 uint32_t Cubemap::heapIndex() const {
   return m_img->m_heapIndexSampled;
+}
+
+uint32_t Cubemap::storageHeapIndex() const {
+  return m_img->m_heapIndexStorage;
 }
 
 void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layout) {
