@@ -105,13 +105,24 @@ bool Input::isJustReleased(MouseButton b) const {
 }
 
 std::pair<double, double> Input::cursorPos() const {
-  return { m_impl->m_cursorX, m_impl->m_cursorY };
+  int w = 0, h = 0;
+  glfwGetWindowSize(m_impl->m_window, &w, &h);
+  if (w <= 0 || h <= 0) return { 0.0, 0.0 };
+
+  return {
+    2.0 * m_impl->m_cursorX / static_cast<double>(w) - 1.0,
+    2.0 * m_impl->m_cursorY / static_cast<double>(h) - 1.0
+  };
 }
 
 std::pair<double, double> Input::cursorDelta() const {
+  int w = 0, h = 0;
+  glfwGetWindowSize(m_impl->m_window, &w, &h);
+  if (w <= 0 || h <= 0) return { 0.0, 0.0 };
+
   return {
-    m_impl->m_cursorX - m_impl->m_cursorXPrev,
-    m_impl->m_cursorY - m_impl->m_cursorYPrev
+    2.0 * (m_impl->m_cursorX - m_impl->m_cursorXPrev) / static_cast<double>(w),
+    2.0 * (m_impl->m_cursorY - m_impl->m_cursorYPrev) / static_cast<double>(h)
   };
 }
 
