@@ -36,10 +36,20 @@ enum class MouseButton {
 ## Cursor and scroll
 
 ```cpp
-std::pair<double, double> cursorPos()    const;   // pixels from top-left
-std::pair<double, double> cursorDelta()  const;   // since last frame
-std::pair<double, double> scrollDelta()  const;   // since last frame
+std::pair<double, double> cursorPos()    const;   // normalized to [-1, 1]
+std::pair<double, double> cursorDelta()  const;   // since last frame, same scale
+std::pair<double, double> scrollDelta()  const;   // raw scroll units, since last frame
 ```
+
+Cursor position is normalized to the window: `(-1, -1)` is the top-left
+corner, `(+1, +1)` is the bottom-right, `(0, 0)` is the center. Y is down,
+matching GLFW / Vulkan convention — flip the sign if you want Y-up for
+FPS-style camera math.
+
+`cursorDelta` uses the same scale (full-screen swipe = `±2` along that axis),
+not pixel units. Bounded by `[-2, 2]` in the pathological teleport case but
+typically much smaller per frame; multiply by a sensitivity factor before
+applying as camera rotation.
 
 Deltas reset to zero at the start of each frame's poll.
 

@@ -234,10 +234,13 @@ struct ImageData {
   std::vector<std::byte> bytes;
   uint32_t               width;
   uint32_t               height;
+  Format                 format;
 };
 ```
 
-Returned by `grf::readImage(path)`. Pass `bytes` to `Tex2D::write`.
+Returned by `grf::readImage(path)`. Pass `bytes` to `Tex2D::write`, and
+`format` to `createTex2D` if you want the texture to match the decoded
+bit depth exactly. See [api/grf.md](grf.md) for the format-selection rules.
 
 ### `BlendState` / `GraphicsPipelineSettings`
 

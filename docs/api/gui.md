@@ -64,9 +64,12 @@ The framework's install ships `<grf/imgui.h>` and `<grf/imconfig.h>`. You
 can call ImGui directly from your application code — it shares the
 context the framework set up.
 
-The framework auto-creates a docking-enabled main viewport and applies a
-green-brown style at startup. You can override the style after the
-framework constructs:
+The framework auto-creates a docking-enabled main viewport with multi-viewport
+mode and applies a green-brown style at startup. ImGui panels that get
+dragged out of the main viewport open as native OS windows; docking back is
+restricted to the sides of the main viewport (left/right/top/bottom strips),
+not the center area — that's reserved for the application's actual
+rendering. You can override the style after the framework constructs:
 
 ```cpp
 grf::GRF grf;

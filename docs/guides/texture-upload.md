@@ -152,9 +152,14 @@ uint heap indices. On the C++ side, a matching `PushData` struct is pushed
 once per frame.
 
 `grf::readImage(path)` decodes via stb_image. The result has byte data,
-width, and height. `Tex2D::write(bytes, finalLayout)` queues a staging
-copy + transition; the upload happens on a worker thread before the next
-`waitForResourceUpdates()` (which `beginFrame` triggers).
+width, height, and a best-fit `format` (`rgba8_unorm` for LDR PNG/JPG,
+`rgba16_unorm` for 16-bit PNGs, `rgba32_sfloat` for HDR). The example
+above hardcodes `rgba8_srgb` for the texture because PNG colors are
+sRGB-encoded; if you're loading data that's already linear (HDR, normal
+maps, roughness, etc.) pass `img.format` to `createTex2D` instead.
+`Tex2D::write(bytes, finalLayout)` queues a staging copy + transition; the
+upload happens on a worker thread before the next `waitForResourceUpdates()`
+(which `beginFrame` triggers).
 
 The first frame's render submission may fence-wait on the upload completing
 internally (the resource manager tracks last-use values); you do not need

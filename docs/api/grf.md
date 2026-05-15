@@ -65,6 +65,31 @@ the data ready before submitting subsequent commands.
 
 ────────────────────────────────────────────────────────────
 
+## Window dimensions and resize
+
+```cpp
+std::pair<uint32_t, uint32_t> screenDims() const;
+```
+
+Returns the window's **framebuffer pixel** dimensions — what the swapchain
+is sized at, what depth attachments need to match, what shaders should
+treat as the rendering resolution. On Retina / high-DPI displays this is
+*not* the same as the logical window size: a 1280×720 logical window on a
+2x display reports `{ 2560, 1440 }` here. Use this for any GPU resource
+sizing; use `glfwGetWindowSize` directly (via `<GLFW/glfw3.h>`) if you need
+logical window units for non-GPU purposes.
+
+```cpp
+void resizeCallback(std::function<void(uint32_t, uint32_t)> callback);
+```
+
+Register a callback fired whenever the swapchain is recreated (window resize,
+DPI change, etc.). The arguments are the new framebuffer dimensions, matching
+`screenDims()`. The callback does **not** fire on initial construction —
+query `screenDims()` once at startup to handle initial-state sizing yourself.
+
+────────────────────────────────────────────────────────────
+
 ## Subsystem accessors
 
 ```cpp
@@ -213,6 +238,17 @@ pool. Index by frame index to record per-frame.
 ImageData readImage(const std::string& path);
 ```
 
-Decodes an image file (PNG, JPG, etc.) via stb_image. Returns
-`ImageData{ bytes, width, height }` for uploading to a texture via
-`tex.write(...)`.
+Decodes an image file via stb_image. Returns
+`ImageData{ bytes, width, height, format }` for uploading to a texture via
+`tex.write(...)`. The `format` field is the best-fit `grf::Format` for the
+decoded bit depth:
+
+- LDR formats (PNG, JPG, BMP) → `rgba8_unorm`
+- 16-bit PNGs → `rgba16_unorm`
+- HDR (Radiance `.hdr`) → `rgba32_sfloat`
+
+All decoded images are 4-channel — channels missing from the source are
+filled with white (alpha) or replicated (greyscale → RGB). You can pass
+`img.format` directly to `createTex2D` to match the decoded data, or pick
+a different format (e.g. `rgba8_srgb` for sRGB-encoded PNGs) at the cost of
+needing the bit-depth to line up.

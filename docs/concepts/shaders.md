@@ -22,9 +22,17 @@ layout(set = 0, binding = 2) uniform textureCube  grf_Cubemap[];
 layout(set = 0, binding = 3) uniform image2D      grf_Img2D[];
 layout(set = 0, binding = 4) uniform image3D      grf_Img3D[];
 layout(set = 0, binding = 5) uniform sampler      grf_Sampler[];
+layout(set = 0, binding = 6) uniform image2DArray grf_CubemapStorage[];
 ```
 
-Index by `<resource>.heapIndex()`, pushed in via push constants.
+Index by `<resource>.heapIndex()` (or `storageHeapIndex()` for the image
+arrays), pushed in via push constants.
+
+`grf_CubemapStorage[]` exposes each `Cubemap` as an `image2DArray` so
+compute shaders can `imageStore` into individual cube faces via
+`ivec3(x, y, face)`. The cubemap is still sampled through `grf_Cubemap[]` —
+the two arrays index the same underlying image through different views. See
+[Resources](../api/resources.md#tex2d--tex3d--cubemap) for the C++ side.
 
 ## Stages
 

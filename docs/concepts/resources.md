@@ -10,7 +10,7 @@ reference see [api/resources.md](../api/resources.md).
 |------------------|------------------------------|--------------------------|
 | `Buffer`         | Per `BufferIntent`           | BDA pointer (`buf.address()`) |
 | `Tex2D`/`Tex3D`  | Device-local                 | `grf_Tex2D[]`/`grf_Tex3D[]` slot |
-| `Cubemap`        | Device-local                 | `grf_Cubemap[]` slot     |
+| `Cubemap`        | Device-local                 | `grf_Cubemap[]` slot (sampled) + `grf_CubemapStorage[]` slot (image2DArray, for compute writes) |
 | `Img2D`/`Img3D`  | Device-local                 | `grf_Img2D[]`/`grf_Img3D[]` slot (also exposed as sampled) |
 | `DepthImage`     | Device-local                 | Optional `grf_Tex2D[]` slot if `sampled=true` |
 | `Sampler`        | (none)                       | `grf_Sampler[]` slot     |
@@ -81,8 +81,11 @@ Shader-side use is in [Shaders (GSL)](shaders.md).
 
 ## Texture types (`Tex2D`, `Tex3D`, `Cubemap`)
 
-Sampled in shaders, read-only from the shader's perspective. Device-local
-memory. Initial layout `Undefined`.
+Sampled in shaders. `Tex2D` and `Tex3D` are read-only from the shader's
+perspective; `Cubemap` also has a storage view so compute shaders can
+populate it via `imageStore(grf_CubemapStorage[i], ivec3(x, y, face), c)` —
+the common path for baking an equirect HDR into a cubemap and for IBL
+prefilter passes. Device-local memory. Initial layout `Undefined`.
 
 ```cpp
 auto albedo = grf.createTex2D(grf::Format::rgba8_srgb, 1024, 1024);

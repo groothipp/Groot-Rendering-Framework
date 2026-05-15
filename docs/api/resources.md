@@ -70,7 +70,8 @@ for the buffer's lifetime.
 
 ## `Tex2D` / `Tex3D` / `Cubemap`
 
-Sampled, read-only from shader's perspective.
+Sampled by default. `Cubemap` is also writable from compute via a separate
+storage view.
 
 ```cpp
 class Tex2D {
@@ -99,8 +100,11 @@ class Cubemap {
 public:
   Cubemap() = default;
 
-  std::pair<uint32_t, uint32_t> dims() const;
-  // ... same as Tex2D ...
+  std::pair<uint32_t, uint32_t> dims()             const;
+  std::size_t                   size()             const;
+  Format                        format()           const;
+  uint32_t                      heapIndex()        const; // grf_Cubemap[]        (sampled)
+  uint32_t                      storageHeapIndex() const; // grf_CubemapStorage[] (image2DArray)
 
   void write(CubeFace face, std::span<const std::byte> bytes, Layout finalLayout);
 };
@@ -108,6 +112,14 @@ public:
 
 `write` takes the final layout the texture should be in after upload (the
 framework handles `Undefined → TransferDstOptimal → finalLayout`).
+
+`Cubemap` carries two views over the same image: a `textureCube` view for
+sampling and a `image2DArray` view (covering all 6 layers) for compute
+`imageStore`. Use `heapIndex()` to sample, `storageHeapIndex()` to write.
+The image must be in `Layout::General` during compute writes and
+`Layout::ShaderReadOptimal` for sampling — transition with
+`cmd.transition(cubemap, ...)`. This is the path used by equirect →
+cubemap baking and IBL prefilter passes.
 
 ────────────────────────────────────────────────────────────
 
