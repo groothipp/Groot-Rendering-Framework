@@ -132,10 +132,7 @@ int main() {
       };
 
       auto [x, y] = input.cursorPos();
-      vec2 cursor = vec2(
-        ar * (2.0 * static_cast<f32>(x) / static_cast<f32>(screenW) - 1.0),
-        2.0 * static_cast<f32>(y) / static_cast<f32>(screenH) - 1.0
-      );
+      vec2 cursor = vec2(ar * static_cast<f32>(x), static_cast<f32>(y));
 
       f32 sdf1 = circleSDF(cursor, pos1, radius1);
       f32 sdf2 = circleSDF(cursor, pos2, radius2);

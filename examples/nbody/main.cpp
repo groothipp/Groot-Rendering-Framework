@@ -143,7 +143,7 @@ int main() {
 
     if (brushToggle && particleCount < g_maxParticleCount) {
       auto [x, y] = input.cursorPos();
-      vec2 cursor = vec2(ar * (2.0 * x / screenW - 1.0), 2.0 * y / screenH - 1.0);
+      vec2 cursor = vec2(ar * x, y);
 
       graphCmd.beginProfile("brush");
       brush.render(graphCmd, Brush::Data{
@@ -199,7 +199,7 @@ int main() {
       spawnTimer == g_spawnTimerTimeout
     ) {
       auto [x, y] = input.cursorPos();
-      vec2 cursor = vec2(ar * (2.0 * x / screenW - 1.0), 2.0 * y / screenH - 1.0);
+      vec2 cursor = vec2(ar * x, y);
 
       particleCount += particles.spawn(
         cursor, particleCount, g_flightFrames, static_cast<f32>(spawnRadius) / 1000.f
