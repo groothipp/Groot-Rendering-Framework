@@ -25,6 +25,23 @@ layout(set = 0, binding = 6) uniform image2DArray grf_CubemapStorage[];
 
 )";
 
+uint32_t locationCount(std::string_view type) {
+  if (type == "mat2" || type == "mat2x2" || type == "mat2x3" || type == "mat2x4") return 2;
+  if (type == "mat3" || type == "mat3x2" || type == "mat3x3" || type == "mat3x4") return 3;
+  if (type == "mat4" || type == "mat4x2" || type == "mat4x3" || type == "mat4x4") return 4;
+
+  if (type == "dmat2"   || type == "dmat2x2") return 2;
+  if (type == "dmat2x3" || type == "dmat2x4") return 4;
+  if (type == "dmat3x2") return 3;
+  if (type == "dmat3"   || type == "dmat3x3" || type == "dmat3x4") return 6;
+  if (type == "dmat4x2") return 4;
+  if (type == "dmat4"   || type == "dmat4x3" || type == "dmat4x4") return 8;
+
+  if (type == "dvec3" || type == "dvec4") return 2;
+
+  return 1;
+}
+
 }
 
 Assembler::Assembler(const ParsedSource& parsed, ShaderType type)
@@ -92,10 +109,11 @@ std::string Assembler::assemble() const {
   for (const auto& v : m_parsed.ins) {
     if (v.interpolation.empty())
       out += std::format("layout(location = {}) in {} {};\n",
-                         inLoc++, v.type, v.name);
+                         inLoc, v.type, v.name);
     else
       out += std::format("layout(location = {}) {} in {} {};\n",
-                         inLoc++, v.interpolation, v.type, v.name);
+                         inLoc, v.interpolation, v.type, v.name);
+    inLoc += locationCount(v.type);
   }
   if (!m_parsed.ins.empty()) out += '\n';
 
@@ -103,10 +121,11 @@ std::string Assembler::assemble() const {
   for (const auto& v : m_parsed.outs) {
     if (v.interpolation.empty())
       out += std::format("layout(location = {}) out {} {};\n",
-                         outLoc++, v.type, v.name);
+                         outLoc, v.type, v.name);
     else
       out += std::format("layout(location = {}) {} out {} {};\n",
-                         outLoc++, v.interpolation, v.type, v.name);
+                         outLoc, v.interpolation, v.type, v.name);
+    outLoc += locationCount(v.type);
   }
   if (!m_parsed.outs.empty()) out += '\n';
 
