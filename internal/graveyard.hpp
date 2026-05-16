@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace grf {
 
@@ -43,6 +44,9 @@ struct Grave {
   uint32_t                storageSlot    = 0xFFFFFFFF;
   uint32_t                sampledBinding = 0xFFFFFFFF;
   uint32_t                sampledSlot    = 0xFFFFFFFF;
+
+  std::vector<vk::ImageView> extraStorageViews;
+  std::vector<uint32_t>      extraStorageSlots;
 };
 
 }

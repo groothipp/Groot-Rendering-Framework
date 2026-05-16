@@ -77,8 +77,9 @@ public:
   std::size_t size() const;
   Format format() const;
   uint32_t sampledHeapIndex() const;
-  uint32_t storageHeapIndex() const;
-  void write(std::span<const std::byte>, Layout);
+  uint32_t storageHeapIndex(uint32_t mipLevel = 0) const;
+  uint32_t mipLevels() const;
+  void write(std::span<const std::byte>, Layout, uint32_t mipLevel = 0);
 
 private:
   explicit Img2D(std::shared_ptr<Image>);
@@ -97,8 +98,9 @@ public:
   std::size_t size() const;
   Format format() const;
   uint32_t sampledHeapIndex() const;
-  uint32_t storageHeapIndex() const;
-  void write(uint32_t, std::span<const std::byte>, Layout);
+  uint32_t storageHeapIndex(uint32_t mipLevel = 0) const;
+  uint32_t mipLevels() const;
+  void write(uint32_t, std::span<const std::byte>, Layout, uint32_t mipLevel = 0);
 
 private:
   explicit Img3D(std::shared_ptr<Image>);
@@ -117,7 +119,8 @@ public:
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  void write(std::span<const std::byte>, Layout);
+  uint32_t mipLevels() const;
+  void write(std::span<const std::byte>, Layout, uint32_t mipLevel = 0);
 
 private:
   explicit Tex2D(std::shared_ptr<Image>);
@@ -136,7 +139,8 @@ public:
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  void write(uint32_t, std::span<const std::byte>, Layout);
+  uint32_t mipLevels() const;
+  void write(uint32_t, std::span<const std::byte>, Layout, uint32_t mipLevel = 0);
 
 private:
   explicit Tex3D(std::shared_ptr<Image>);
@@ -155,8 +159,9 @@ public:
   std::size_t size() const;
   Format format() const;
   uint32_t heapIndex() const;
-  uint32_t storageHeapIndex() const;
-  void write(CubeFace, std::span<const std::byte>, Layout);
+  uint32_t storageHeapIndex(uint32_t mipLevel = 0) const;
+  uint32_t mipLevels() const;
+  void write(CubeFace, std::span<const std::byte>, Layout, uint32_t mipLevel = 0);
 
 private:
   explicit Cubemap(std::shared_ptr<Image>);

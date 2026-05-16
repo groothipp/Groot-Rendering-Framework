@@ -138,16 +138,19 @@ Buffer GRF::createBuffer(BufferIntent intent, std::size_t size) {
   return m_impl->m_allocator->allocateBuffer(size, intent);
 }
 
-Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height) {
+Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height, uint32_t mipLevels) {
   auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
-    .type   = vk::ImageType::e2D,
-    .format = static_cast<vk::Format>(format),
-    .usage  = vk::ImageUsageFlagBits::eSampled      |
-              vk::ImageUsageFlagBits::eTransferSrc  |
-              vk::ImageUsageFlagBits::eTransferDst,
-    .width  = width,
-    .height = height
+    .type      = vk::ImageType::e2D,
+    .format    = static_cast<vk::Format>(format),
+    .usage     = vk::ImageUsageFlagBits::eSampled      |
+                 vk::ImageUsageFlagBits::eTransferSrc  |
+                 vk::ImageUsageFlagBits::eTransferDst,
+    .width     = width,
+    .height    = height,
+    .mipLevels = mipLevels
   });
+
+  img->m_mipLevels = mipLevels;
 
   img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
     .image      = img->m_image,
@@ -160,9 +163,11 @@ Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height) {
       .a = vk::ComponentSwizzle::eIdentity
     },
     .subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
-      .levelCount = 1,
-      .layerCount = 1
+      .aspectMask     = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel   = 0,
+      .levelCount     = mipLevels,
+      .baseArrayLayer = 0,
+      .layerCount     = 1
     }
   });
 
@@ -171,17 +176,20 @@ Tex2D GRF::createTex2D(Format format, uint32_t width, uint32_t height) {
   return Tex2D(img);
 }
 
-Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels) {
   auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
-    .type   = vk::ImageType::e3D,
-    .format = static_cast<vk::Format>(format),
-    .usage  = vk::ImageUsageFlagBits::eSampled      |
-              vk::ImageUsageFlagBits::eTransferSrc  |
-              vk::ImageUsageFlagBits::eTransferDst,
-    .width  = width,
-    .height = height,
-    .depth  = depth
+    .type      = vk::ImageType::e3D,
+    .format    = static_cast<vk::Format>(format),
+    .usage     = vk::ImageUsageFlagBits::eSampled      |
+                 vk::ImageUsageFlagBits::eTransferSrc  |
+                 vk::ImageUsageFlagBits::eTransferDst,
+    .width     = width,
+    .height    = height,
+    .depth     = depth,
+    .mipLevels = mipLevels
   });
+
+  img->m_mipLevels = mipLevels;
 
   img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
     .image      = img->m_image,
@@ -194,9 +202,11 @@ Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t 
       .a = vk::ComponentSwizzle::eIdentity
     },
     .subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
-      .levelCount = 1,
-      .layerCount = 1
+      .aspectMask     = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel   = 0,
+      .levelCount     = mipLevels,
+      .baseArrayLayer = 0,
+      .layerCount     = 1
     }
   });
 
@@ -205,7 +215,7 @@ Tex3D GRF::createTex3D(Format format, uint32_t width, uint32_t height, uint32_t 
   return Tex3D(img);
 }
 
-Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
+Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height, uint32_t mipLevels) {
   auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
     .type       = vk::ImageType::e2D,
     .format     = static_cast<vk::Format>(format),
@@ -215,8 +225,11 @@ Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
                   vk::ImageUsageFlagBits::eTransferDst,
     .width      = width,
     .height     = height,
+    .mipLevels  = mipLevels,
     .isCubemap  = true
   });
+
+  img->m_mipLevels = mipLevels;
 
   img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
     .image      = img->m_image,
@@ -229,45 +242,56 @@ Cubemap GRF::createCubemap(Format format, uint32_t width, uint32_t height) {
       .a = vk::ComponentSwizzle::eIdentity
     },
     .subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
-      .levelCount = 1,
-      .layerCount = 6
+      .aspectMask     = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel   = 0,
+      .levelCount     = mipLevels,
+      .baseArrayLayer = 0,
+      .layerCount     = 6
     }
   });
 
-  img->m_storageView = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
-    .image      = img->m_image,
-    .viewType   = vk::ImageViewType::e2DArray,
-    .format     = img->m_format,
-    .components = {
-      .r = vk::ComponentSwizzle::eIdentity,
-      .g = vk::ComponentSwizzle::eIdentity,
-      .b = vk::ComponentSwizzle::eIdentity,
-      .a = vk::ComponentSwizzle::eIdentity
-    },
-    .subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
-      .levelCount = 1,
-      .layerCount = 6
-    }
-  });
+  img->m_storageViews.reserve(mipLevels);
+  for (uint32_t m = 0; m < mipLevels; ++m) {
+    img->m_storageViews.push_back(m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+      .image      = img->m_image,
+      .viewType   = vk::ImageViewType::e2DArray,
+      .format     = img->m_format,
+      .components = {
+        .r = vk::ComponentSwizzle::eIdentity,
+        .g = vk::ComponentSwizzle::eIdentity,
+        .b = vk::ComponentSwizzle::eIdentity,
+        .a = vk::ComponentSwizzle::eIdentity
+      },
+      .subresourceRange = {
+        .aspectMask     = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel   = m,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 6
+      }
+    }));
+  }
+  img->m_storageView = img->m_storageViews[0];
 
   m_impl->m_descriptorHeap->addCubemap(img);
 
   return Cubemap(img);
 }
 
-Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height) {
+Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height, uint32_t mipLevels) {
   auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
-    .type = vk::ImageType::e2D,
-    .format = static_cast<vk::Format>(format),
-    .usage  = vk::ImageUsageFlagBits::eStorage      |
-              vk::ImageUsageFlagBits::eSampled      |
-              vk::ImageUsageFlagBits::eTransferSrc  |
-              vk::ImageUsageFlagBits::eTransferDst,
-    .width  = width,
-    .height = height
+    .type      = vk::ImageType::e2D,
+    .format    = static_cast<vk::Format>(format),
+    .usage     = vk::ImageUsageFlagBits::eStorage      |
+                 vk::ImageUsageFlagBits::eSampled      |
+                 vk::ImageUsageFlagBits::eTransferSrc  |
+                 vk::ImageUsageFlagBits::eTransferDst,
+    .width     = width,
+    .height    = height,
+    .mipLevels = mipLevels
   });
+
+  img->m_mipLevels = mipLevels;
 
   img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
     .image      = img->m_image,
@@ -280,29 +304,56 @@ Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height) {
       .a = vk::ComponentSwizzle::eIdentity
     },
     .subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
-      .levelCount = 1,
-      .layerCount = 1
+      .aspectMask     = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel   = 0,
+      .levelCount     = mipLevels,
+      .baseArrayLayer = 0,
+      .layerCount     = 1
     }
   });
+
+  img->m_storageViews.reserve(mipLevels);
+  for (uint32_t m = 0; m < mipLevels; ++m) {
+    img->m_storageViews.push_back(m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+      .image      = img->m_image,
+      .viewType   = vk::ImageViewType::e2D,
+      .format     = img->m_format,
+      .components = {
+        .r = vk::ComponentSwizzle::eIdentity,
+        .g = vk::ComponentSwizzle::eIdentity,
+        .b = vk::ComponentSwizzle::eIdentity,
+        .a = vk::ComponentSwizzle::eIdentity
+      },
+      .subresourceRange = {
+        .aspectMask     = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel   = m,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1
+      }
+    }));
+  }
 
   m_impl->m_descriptorHeap->addImg2D(img);
 
   return Img2D(img);
 }
 
-Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels) {
   auto img = m_impl->m_allocator->allocateImage(ImageAllocInfo{
-    .type   = vk::ImageType::e3D,
-    .format = static_cast<vk::Format>(format),
-    .usage  = vk::ImageUsageFlagBits::eStorage      |
-              vk::ImageUsageFlagBits::eSampled      |
-              vk::ImageUsageFlagBits::eTransferSrc  |
-              vk::ImageUsageFlagBits::eTransferDst,
-    .width  = width,
-    .height = height,
-    .depth  = depth
+    .type      = vk::ImageType::e3D,
+    .format    = static_cast<vk::Format>(format),
+    .usage     = vk::ImageUsageFlagBits::eStorage      |
+                 vk::ImageUsageFlagBits::eSampled      |
+                 vk::ImageUsageFlagBits::eTransferSrc  |
+                 vk::ImageUsageFlagBits::eTransferDst,
+    .width     = width,
+    .height    = height,
+    .depth     = depth,
+    .mipLevels = mipLevels
   });
+
+  img->m_mipLevels = mipLevels;
 
   img->m_view = m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
     .image      = img->m_image,
@@ -315,11 +366,35 @@ Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t 
       .a = vk::ComponentSwizzle::eIdentity
     },
     .subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor,
-      .levelCount = 1,
-      .layerCount = 1
+      .aspectMask     = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel   = 0,
+      .levelCount     = mipLevels,
+      .baseArrayLayer = 0,
+      .layerCount     = 1
     }
   });
+
+  img->m_storageViews.reserve(mipLevels);
+  for (uint32_t m = 0; m < mipLevels; ++m) {
+    img->m_storageViews.push_back(m_impl->m_device.createImageView(vk::ImageViewCreateInfo{
+      .image      = img->m_image,
+      .viewType   = vk::ImageViewType::e3D,
+      .format     = img->m_format,
+      .components = {
+        .r = vk::ComponentSwizzle::eIdentity,
+        .g = vk::ComponentSwizzle::eIdentity,
+        .b = vk::ComponentSwizzle::eIdentity,
+        .a = vk::ComponentSwizzle::eIdentity
+      },
+      .subresourceRange = {
+        .aspectMask     = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel   = m,
+        .levelCount     = 1,
+        .baseArrayLayer = 0,
+        .layerCount     = 1
+      }
+    }));
+  }
 
   m_impl->m_descriptorHeap->addImg3D(img);
 
@@ -378,22 +453,22 @@ Ring<Buffer> GRF::createBufferRing(BufferIntent intent, std::size_t size) {
   return ring;
 }
 
-Ring<Img2D> GRF::createImg2DRing(Format format, uint32_t width, uint32_t height) {
+Ring<Img2D> GRF::createImg2DRing(Format format, uint32_t width, uint32_t height, uint32_t mipLevels) {
   auto ring = Ring<Img2D>(m_impl->m_settings.flightFrames);
 
   for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i) {
-    auto img = createImg2D(format, width, height);
+    auto img = createImg2D(format, width, height, mipLevels);
     ring.m_objs.push_back(img);
   }
 
   return ring;
 }
 
-Ring<Img3D> GRF::createImg3DRing(Format format, uint32_t width, uint32_t height, uint32_t depth) {
+Ring<Img3D> GRF::createImg3DRing(Format format, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels) {
   auto ring = Ring<Img3D>(m_impl->m_settings.flightFrames);
 
   for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i) {
-    auto img = createImg3D(format, width, height, depth);
+    auto img = createImg3D(format, width, height, depth, mipLevels);
     ring.m_objs.push_back(img);
   }
 

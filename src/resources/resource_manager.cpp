@@ -52,12 +52,16 @@ void ResourceManager::readBuffer(vk::DeviceAddress address, std::span<std::byte>
 }
 
 void ResourceManager::writeImage(const ImageWriteInfo& info) {
+  uint32_t mipWidth  = std::max(1u, info.img->m_width  >> info.mipLevel);
+  uint32_t mipHeight = std::max(1u, info.img->m_height >> info.mipLevel);
+
   m_imageUpdates.emplace_back(ImageUpdateInfo{
     .img                = info.img,
     .data               = std::vector<std::byte>(info.data.begin(), info.data.end()),
     .region             = vk::BufferImageCopy{
       .imageSubresource = {
         .aspectMask     = vk::ImageAspectFlagBits::eColor,
+        .mipLevel       = info.mipLevel,
         .baseArrayLayer = static_cast<uint32_t>(info.face),
         .layerCount     = 1
       },
@@ -67,8 +71,8 @@ void ResourceManager::writeImage(const ImageWriteInfo& info) {
         .z = info.depth
       },
       .imageExtent      = {
-        .width  = info.img->m_width,
-        .height = info.img->m_height,
+        .width  = mipWidth,
+        .height = mipHeight,
         .depth  = 1
       }
     },
@@ -223,9 +227,10 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t 
       .newLayout        = vk::ImageLayout::eTransferDstOptimal,
       .image            = info.img->m_image,
       .subresourceRange = {
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .levelCount = 1,
-        .layerCount = info.isCubemap ? 6u : 1u
+        .aspectMask   = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel = info.region.imageSubresource.mipLevel,
+        .levelCount   = 1,
+        .layerCount   = info.isCubemap ? 6u : 1u
       }
     };
 
@@ -247,9 +252,10 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t 
       .newLayout        = info.layout,
       .image            = info.img->m_image,
       .subresourceRange = {
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .levelCount = 1,
-        .layerCount = info.isCubemap ? 6u : 1u
+        .aspectMask   = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel = info.region.imageSubresource.mipLevel,
+        .levelCount   = 1,
+        .layerCount   = info.isCubemap ? 6u : 1u
       }
     };
 
@@ -304,6 +310,8 @@ void ResourceManager::executeDrain(const Grave& grave) {
       m_allocator->destroyImage(grave);
       m_descriptorHeap->releaseSlot(grave.storageBinding, grave.storageSlot);
       m_descriptorHeap->releaseSlot(grave.sampledBinding, grave.sampledSlot);
+      for (auto slot : grave.extraStorageSlots)
+        m_descriptorHeap->releaseSlot(grave.storageBinding, slot);
       break;
     case ResourceKind::Sampler:
       m_allocator->destroySampler(grave);

@@ -41,6 +41,7 @@ struct ImageWriteInfo {
   vk::ImageLayout             layout;
   int32_t                     depth = 0;
   CubeFace                    face = CubeFace::Right;
+  uint32_t                    mipLevel = 0;
   bool                        isCubemap = false;
 };
 

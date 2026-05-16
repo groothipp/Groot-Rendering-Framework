@@ -93,18 +93,31 @@ Image::~Image() {
   auto rm = m_resourceManager.lock();
   if (rm == nullptr) return;
 
+  std::vector<vk::ImageView> extraViews;
+  std::vector<uint32_t>      extraSlots;
+  for (std::size_t i = 1; i < m_storageViews.size(); ++i) {
+    if (m_storageViews[i] != m_storageView)
+      extraViews.push_back(m_storageViews[i]);
+  }
+  for (std::size_t i = 1; i < m_heapIndicesStorage.size(); ++i) {
+    if (m_heapIndicesStorage[i] != m_heapIndexStorage)
+      extraSlots.push_back(m_heapIndicesStorage[i]);
+  }
+
   rm->scheduleDestruction(Grave{
-    .kind           = ResourceKind::Image,
-    .retireValues   = m_lastUseValues,
-    .image          = m_image,
-    .view           = m_view,
-    .storageView    = m_storageView,
-    .allocation     = m_allocation,
-    .imageId        = m_id,
-    .storageBinding = m_storageBinding,
-    .storageSlot    = m_heapIndexStorage,
-    .sampledBinding = m_sampledBinding,
-    .sampledSlot    = m_heapIndexSampled
+    .kind              = ResourceKind::Image,
+    .retireValues      = m_lastUseValues,
+    .image             = m_image,
+    .view              = m_view,
+    .storageView       = m_storageView,
+    .allocation        = m_allocation,
+    .imageId           = m_id,
+    .storageBinding    = m_storageBinding,
+    .storageSlot       = m_heapIndexStorage,
+    .sampledBinding    = m_sampledBinding,
+    .sampledSlot       = m_heapIndexSampled,
+    .extraStorageViews = std::move(extraViews),
+    .extraStorageSlots = std::move(extraSlots),
   });
 }
 
@@ -126,18 +139,25 @@ uint32_t Img2D::sampledHeapIndex() const {
   return m_img->m_heapIndexSampled;
 }
 
-uint32_t Img2D::storageHeapIndex() const {
+uint32_t Img2D::storageHeapIndex(uint32_t mipLevel) const {
+  if (mipLevel < m_img->m_heapIndicesStorage.size())
+    return m_img->m_heapIndicesStorage[mipLevel];
   return m_img->m_heapIndexStorage;
 }
 
-void Img2D::write(std::span<const std::byte> data, Layout layout) {
+uint32_t Img2D::mipLevels() const {
+  return m_img->m_mipLevels;
+}
+
+void Img2D::write(std::span<const std::byte> data, Layout layout, uint32_t mipLevel) {
   auto rm = m_img->m_resourceManager.lock();
   if (rm == nullptr) return;
 
   rm->writeImage(ImageWriteInfo{
-    .img    = m_img,
-    .data   = data,
-    .layout = static_cast<vk::ImageLayout>(layout)
+    .img      = m_img,
+    .data     = data,
+    .layout   = static_cast<vk::ImageLayout>(layout),
+    .mipLevel = mipLevel
   });
 }
 
@@ -159,11 +179,17 @@ uint32_t Img3D::sampledHeapIndex() const {
   return m_img->m_heapIndexSampled;
 }
 
-uint32_t Img3D::storageHeapIndex() const {
+uint32_t Img3D::storageHeapIndex(uint32_t mipLevel) const {
+  if (mipLevel < m_img->m_heapIndicesStorage.size())
+    return m_img->m_heapIndicesStorage[mipLevel];
   return m_img->m_heapIndexStorage;
 }
 
-void Img3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {
+uint32_t Img3D::mipLevels() const {
+  return m_img->m_mipLevels;
+}
+
+void Img3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout, uint32_t mipLevel) {
   if (depth > m_img->m_depth)
     GRF_PANIC("Tried to write to invalid depth of Img3D");
 
@@ -174,10 +200,11 @@ void Img3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout
   if (rm == nullptr) return;
 
   rm->writeImage(ImageWriteInfo{
-    .img    = m_img,
-    .data   = data,
-    .layout = static_cast<vk::ImageLayout>(layout),
-    .depth  = static_cast<int32_t>(depth)
+    .img      = m_img,
+    .data     = data,
+    .layout   = static_cast<vk::ImageLayout>(layout),
+    .depth    = static_cast<int32_t>(depth),
+    .mipLevel = mipLevel
   });
 }
 
@@ -199,14 +226,19 @@ uint32_t Tex2D::heapIndex() const {
   return m_img->m_heapIndexSampled;
 }
 
-void Tex2D::write(std::span<const std::byte> data, Layout layout) {
+uint32_t Tex2D::mipLevels() const {
+  return m_img->m_mipLevels;
+}
+
+void Tex2D::write(std::span<const std::byte> data, Layout layout, uint32_t mipLevel) {
   auto rm = m_img->m_resourceManager.lock();
   if (rm == nullptr) return;
 
   rm->writeImage(ImageWriteInfo{
-    .img    = m_img,
-    .data   = data,
-    .layout = static_cast<vk::ImageLayout>(layout)
+    .img      = m_img,
+    .data     = data,
+    .layout   = static_cast<vk::ImageLayout>(layout),
+    .mipLevel = mipLevel
   });
 }
 
@@ -228,15 +260,20 @@ uint32_t Tex3D::heapIndex() const {
   return m_img->m_heapIndexSampled;
 }
 
-void Tex3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout) {
+uint32_t Tex3D::mipLevels() const {
+  return m_img->m_mipLevels;
+}
+
+void Tex3D::write(uint32_t depth, std::span<const std::byte> data, Layout layout, uint32_t mipLevel) {
   auto rm = m_img->m_resourceManager.lock();
   if (rm == nullptr) return;
 
   rm->writeImage(ImageWriteInfo{
-    .img    = m_img,
-    .data   = data,
-    .layout = static_cast<vk::ImageLayout>(layout),
-    .depth  = static_cast<int32_t>(depth)
+    .img      = m_img,
+    .data     = data,
+    .layout   = static_cast<vk::ImageLayout>(layout),
+    .depth    = static_cast<int32_t>(depth),
+    .mipLevel = mipLevel
   });
 }
 
@@ -258,11 +295,17 @@ uint32_t Cubemap::heapIndex() const {
   return m_img->m_heapIndexSampled;
 }
 
-uint32_t Cubemap::storageHeapIndex() const {
+uint32_t Cubemap::storageHeapIndex(uint32_t mipLevel) const {
+  if (mipLevel < m_img->m_heapIndicesStorage.size())
+    return m_img->m_heapIndicesStorage[mipLevel];
   return m_img->m_heapIndexStorage;
 }
 
-void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layout) {
+uint32_t Cubemap::mipLevels() const {
+  return m_img->m_mipLevels;
+}
+
+void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layout, uint32_t mipLevel) {
   auto rm = m_img->m_resourceManager.lock();
   if (rm == nullptr) return;
 
@@ -271,6 +314,7 @@ void Cubemap::write(CubeFace face, std::span<const std::byte> data, Layout layou
     .data       = data,
     .layout     = static_cast<vk::ImageLayout>(layout),
     .face       = face,
+    .mipLevel   = mipLevel,
     .isCubemap  = true
   });
 }

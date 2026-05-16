@@ -73,6 +73,7 @@ ImageBits CommandBuffer::extractAny(const TransitionImage& img) {
         .view          = img->m_view,
         .aspect        = vk::ImageAspectFlagBits::eDepth,
         .layerCount    = 1,
+        .mipLevels     = img->m_mipLevels,
         .extent        = { img->m_width, img->m_height, std::max(img->m_depth, 1u) },
         .currentLayout = img->m_layout,
         .impl          = img
@@ -84,6 +85,7 @@ ImageBits CommandBuffer::extractAny(const TransitionImage& img) {
         .view          = img->m_view,
         .aspect        = vk::ImageAspectFlagBits::eColor,
         .layerCount    = 6,
+        .mipLevels     = img->m_mipLevels,
         .extent        = { img->m_width, img->m_height, 1 },
         .currentLayout = img->m_layout,
         .impl          = img
@@ -95,6 +97,7 @@ ImageBits CommandBuffer::extractAny(const TransitionImage& img) {
         .view          = img->m_view,
         .aspect        = vk::ImageAspectFlagBits::eColor,
         .layerCount    = 1,
+        .mipLevels     = img->m_mipLevels,
         .extent        = { img->m_width, img->m_height, std::max(img->m_depth, 1u) },
         .currentLayout = img->m_layout,
         .impl          = img
@@ -392,7 +395,7 @@ void CommandBuffer::transition(const TransitionImage& img, Layout from, Layout t
     .image            = bits.image,
     .subresourceRange = {
       .aspectMask = bits.aspect,
-      .levelCount = 1,
+      .levelCount = bits.mipLevels,
       .layerCount = bits.layerCount
     }
   };
@@ -423,7 +426,7 @@ void CommandBuffer::release(const TransitionImage& img, Layout from, Layout to, 
     .image               = bits.image,
     .subresourceRange    = {
       .aspectMask = bits.aspect,
-      .levelCount = 1,
+      .levelCount = bits.mipLevels,
       .layerCount = bits.layerCount
     }
   };
@@ -456,7 +459,7 @@ void CommandBuffer::acquire(const TransitionImage& img, Layout from, Layout to, 
     .image               = bits.image,
     .subresourceRange    = {
       .aspectMask = bits.aspect,
-      .levelCount = 1,
+      .levelCount = bits.mipLevels,
       .layerCount = bits.layerCount
     }
   };

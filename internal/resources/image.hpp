@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace grf {
 
@@ -45,6 +46,9 @@ public:
   uint32_t        m_width = 0;
   uint32_t        m_height = 0;
   uint32_t        m_depth = 0;
+  uint32_t        m_mipLevels = 1;
+  std::vector<vk::ImageView> m_storageViews;
+  std::vector<uint32_t>      m_heapIndicesStorage;
   std::array<uint64_t, 3> m_lastUseValues = { 0, 0, 0 };
 
 public:

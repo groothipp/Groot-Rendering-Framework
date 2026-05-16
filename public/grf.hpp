@@ -45,16 +45,16 @@ public:
   Shader compileShader(ShaderType, const std::string&);
 
   Buffer createBuffer(BufferIntent, std::size_t);
-  Tex2D createTex2D(Format, uint32_t, uint32_t);
-  Tex3D createTex3D(Format, uint32_t, uint32_t, uint32_t);
-  Cubemap createCubemap(Format, uint32_t, uint32_t);
-  Img2D createImg2D(Format, uint32_t, uint32_t);
-  Img3D createImg3D(Format, uint32_t, uint32_t, uint32_t);
+  Tex2D createTex2D(Format, uint32_t, uint32_t, uint32_t mipLevels = 1);
+  Tex3D createTex3D(Format, uint32_t, uint32_t, uint32_t, uint32_t mipLevels = 1);
+  Cubemap createCubemap(Format, uint32_t, uint32_t, uint32_t mipLevels = 1);
+  Img2D createImg2D(Format, uint32_t, uint32_t, uint32_t mipLevels = 1);
+  Img3D createImg3D(Format, uint32_t, uint32_t, uint32_t, uint32_t mipLevels = 1);
   Sampler createSampler(const SamplerSettings&);
   DepthImage createDepthImage(Format, uint32_t, uint32_t, bool sampled = false);
   Ring<Buffer> createBufferRing(BufferIntent, std::size_t);
-  Ring<Img2D> createImg2DRing(Format, uint32_t, uint32_t);
-  Ring<Img3D> createImg3DRing(Format, uint32_t, uint32_t, uint32_t);
+  Ring<Img2D> createImg2DRing(Format, uint32_t, uint32_t, uint32_t mipLevels = 1);
+  Ring<Img3D> createImg3DRing(Format, uint32_t, uint32_t, uint32_t, uint32_t mipLevels = 1);
   ComputePipeline createComputePipeline(Shader);
   GraphicsPipeline createGraphicsPipeline(Shader vertex, Shader fragment, const GraphicsPipelineSettings&);
 

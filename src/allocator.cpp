@@ -49,6 +49,10 @@ void Allocator::destroy() {
       m_device.destroyImageView(image->m_view);
       if (image->m_storageView != nullptr)
         m_device.destroyImageView(image->m_storageView);
+      for (auto v : image->m_storageViews) {
+        if (v != image->m_storageView)
+          m_device.destroyImageView(v);
+      }
       vmaDestroyImage(m_allocator, image->m_image, image->m_allocation);
     }
   }
@@ -82,6 +86,8 @@ void Allocator::destroyImage(const Grave& grave) {
   m_device.destroyImageView(grave.view);
   if (grave.storageView != nullptr)
     m_device.destroyImageView(grave.storageView);
+  for (auto v : grave.extraStorageViews)
+    m_device.destroyImageView(v);
   vmaDestroyImage(m_allocator, grave.image, grave.allocation);
   m_images.erase(grave.imageId);
 }
@@ -151,7 +157,7 @@ std::shared_ptr<Image> Allocator::allocateImage(const ImageAllocInfo& info) {
       .height = info.height,
       .depth  = info.depth
     },
-    .mipLevels    = 1,
+    .mipLevels    = info.mipLevels,
     .arrayLayers  = 1,
     .samples      = vk::SampleCountFlagBits::e1,
     .tiling       = vk::ImageTiling::eOptimal,

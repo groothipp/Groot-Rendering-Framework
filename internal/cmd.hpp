@@ -17,6 +17,7 @@ struct ImageBits {
   vk::ImageView           view  = nullptr;
   vk::ImageAspectFlags    aspect = vk::ImageAspectFlagBits::eColor;
   uint32_t                layerCount = 1;
+  uint32_t                mipLevels = 1;
   vk::Extent3D            extent = { 0, 0, 0 };
   vk::ImageLayout         currentLayout = vk::ImageLayout::eUndefined;
   std::shared_ptr<Image>  impl;

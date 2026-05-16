@@ -97,125 +97,158 @@ void DescriptorHeap::addTex3D(std::shared_ptr<Image> impl) {
 
 void DescriptorHeap::addCubemap(std::shared_ptr<Image> impl) {
   uint32_t sampledSlot = acquireSlot(g_cubemapBinding);
-  uint32_t storageSlot = acquireSlot(g_cubemapStorageBinding);
 
   vk::DescriptorImageInfo sampledInfo{
     .imageView    = impl->m_view,
     .imageLayout  = vk::ImageLayout::eShaderReadOnlyOptimal
   };
 
-  vk::DescriptorImageInfo storageInfo{
-    .imageView    = impl->m_storageView,
-    .imageLayout  = vk::ImageLayout::eGeneral
+  vk::WriteDescriptorSet sampledWrite{
+    .dstSet           = m_set,
+    .dstBinding       = g_cubemapBinding,
+    .dstArrayElement  = sampledSlot,
+    .descriptorCount  = 1,
+    .descriptorType   = vk::DescriptorType::eSampledImage,
+    .pImageInfo       = &sampledInfo
   };
 
-  std::array<vk::WriteDescriptorSet, 2> writes = {
-    vk::WriteDescriptorSet{
-      .dstSet           = m_set,
-      .dstBinding       = g_cubemapBinding,
-      .dstArrayElement  = sampledSlot,
-      .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eSampledImage,
-      .pImageInfo       = &sampledInfo
-    },
-    vk::WriteDescriptorSet{
-      .dstSet           = m_set,
-      .dstBinding       = g_cubemapStorageBinding,
-      .dstArrayElement  = storageSlot,
-      .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eStorageImage,
-      .pImageInfo       = &storageInfo
-    }
-  };
-
-  m_device.updateDescriptorSets(writes, nullptr);
+  m_device.updateDescriptorSets(1, &sampledWrite, 0, nullptr);
 
   impl->m_heapIndexSampled = sampledSlot;
   impl->m_sampledBinding   = g_cubemapBinding;
-  impl->m_heapIndexStorage = storageSlot;
+
+  const std::size_t mipCount = impl->m_storageViews.size();
+  impl->m_heapIndicesStorage.resize(mipCount);
+
+  std::vector<vk::DescriptorImageInfo> storageInfos(mipCount);
+  std::vector<vk::WriteDescriptorSet>  storageWrites(mipCount);
+
+  for (std::size_t m = 0; m < mipCount; ++m) {
+    uint32_t slot = acquireSlot(g_cubemapStorageBinding);
+    storageInfos[m] = vk::DescriptorImageInfo{
+      .imageView    = impl->m_storageViews[m],
+      .imageLayout  = vk::ImageLayout::eGeneral
+    };
+    storageWrites[m] = vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_cubemapStorageBinding,
+      .dstArrayElement  = slot,
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &storageInfos[m]
+    };
+    impl->m_heapIndicesStorage[m] = slot;
+  }
+
+  if (mipCount > 0)
+    m_device.updateDescriptorSets(storageWrites, nullptr);
+
+  impl->m_heapIndexStorage = mipCount > 0 ? impl->m_heapIndicesStorage[0] : 0xFFFFFFFFu;
   impl->m_storageBinding   = g_cubemapStorageBinding;
 }
 
 void DescriptorHeap::addImg2D(std::shared_ptr<Image> impl) {
-  uint32_t storageSlot = acquireSlot(g_img2DBinding);
   uint32_t sampledSlot = acquireSlot(g_tex2DBinding);
-
-  vk::DescriptorImageInfo storageInfo{
-    .imageView    = impl->m_view,
-    .imageLayout  = vk::ImageLayout::eGeneral
-  };
 
   vk::DescriptorImageInfo sampledInfo{
     .imageView    = impl->m_view,
     .imageLayout  = vk::ImageLayout::eShaderReadOnlyOptimal
   };
 
-  std::array<vk::WriteDescriptorSet, 2> writes = {
-    vk::WriteDescriptorSet{
-      .dstSet           = m_set,
-      .dstBinding       = g_img2DBinding,
-      .dstArrayElement  = storageSlot,
-      .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eStorageImage,
-      .pImageInfo       = &storageInfo
-    },
-    vk::WriteDescriptorSet{
-      .dstSet           = m_set,
-      .dstBinding       = g_tex2DBinding,
-      .dstArrayElement  = sampledSlot,
-      .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eSampledImage,
-      .pImageInfo       = &sampledInfo
-    }
+  vk::WriteDescriptorSet sampledWrite{
+    .dstSet           = m_set,
+    .dstBinding       = g_tex2DBinding,
+    .dstArrayElement  = sampledSlot,
+    .descriptorCount  = 1,
+    .descriptorType   = vk::DescriptorType::eSampledImage,
+    .pImageInfo       = &sampledInfo
   };
 
-  m_device.updateDescriptorSets(writes, nullptr);
+  m_device.updateDescriptorSets(1, &sampledWrite, 0, nullptr);
 
-  impl->m_heapIndexStorage = storageSlot;
-  impl->m_storageBinding   = g_img2DBinding;
   impl->m_heapIndexSampled = sampledSlot;
   impl->m_sampledBinding   = g_tex2DBinding;
+
+  const std::size_t mipCount = impl->m_storageViews.size();
+  impl->m_heapIndicesStorage.resize(mipCount);
+
+  std::vector<vk::DescriptorImageInfo> storageInfos(mipCount);
+  std::vector<vk::WriteDescriptorSet>  storageWrites(mipCount);
+
+  for (std::size_t m = 0; m < mipCount; ++m) {
+    uint32_t slot = acquireSlot(g_img2DBinding);
+    storageInfos[m] = vk::DescriptorImageInfo{
+      .imageView    = impl->m_storageViews[m],
+      .imageLayout  = vk::ImageLayout::eGeneral
+    };
+    storageWrites[m] = vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_img2DBinding,
+      .dstArrayElement  = slot,
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &storageInfos[m]
+    };
+    impl->m_heapIndicesStorage[m] = slot;
+  }
+
+  if (mipCount > 0)
+    m_device.updateDescriptorSets(storageWrites, nullptr);
+
+  impl->m_heapIndexStorage = mipCount > 0 ? impl->m_heapIndicesStorage[0] : 0xFFFFFFFFu;
+  impl->m_storageBinding   = g_img2DBinding;
 }
 
 void DescriptorHeap::addImg3D(std::shared_ptr<Image> impl) {
-  uint32_t storageSlot = acquireSlot(g_img3DBinding);
   uint32_t sampledSlot = acquireSlot(g_tex3DBinding);
-
-  vk::DescriptorImageInfo storageInfo{
-    .imageView    = impl->m_view,
-    .imageLayout  = vk::ImageLayout::eGeneral
-  };
 
   vk::DescriptorImageInfo sampledInfo{
     .imageView    = impl->m_view,
     .imageLayout  = vk::ImageLayout::eShaderReadOnlyOptimal
   };
 
-  std::array<vk::WriteDescriptorSet, 2> writes = {
-    vk::WriteDescriptorSet{
-      .dstSet           = m_set,
-      .dstBinding       = g_img3DBinding,
-      .dstArrayElement  = storageSlot,
-      .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eStorageImage,
-      .pImageInfo       = &storageInfo
-    },
-    vk::WriteDescriptorSet{
-      .dstSet           = m_set,
-      .dstBinding       = g_tex3DBinding,
-      .dstArrayElement  = sampledSlot,
-      .descriptorCount  = 1,
-      .descriptorType   = vk::DescriptorType::eSampledImage,
-      .pImageInfo       = &sampledInfo
-    }
+  vk::WriteDescriptorSet sampledWrite{
+    .dstSet           = m_set,
+    .dstBinding       = g_tex3DBinding,
+    .dstArrayElement  = sampledSlot,
+    .descriptorCount  = 1,
+    .descriptorType   = vk::DescriptorType::eSampledImage,
+    .pImageInfo       = &sampledInfo
   };
 
-  m_device.updateDescriptorSets(writes, nullptr);
+  m_device.updateDescriptorSets(1, &sampledWrite, 0, nullptr);
 
-  impl->m_heapIndexStorage = storageSlot;
-  impl->m_storageBinding   = g_img3DBinding;
   impl->m_heapIndexSampled = sampledSlot;
   impl->m_sampledBinding   = g_tex3DBinding;
+
+  const std::size_t mipCount = impl->m_storageViews.size();
+  impl->m_heapIndicesStorage.resize(mipCount);
+
+  std::vector<vk::DescriptorImageInfo> storageInfos(mipCount);
+  std::vector<vk::WriteDescriptorSet>  storageWrites(mipCount);
+
+  for (std::size_t m = 0; m < mipCount; ++m) {
+    uint32_t slot = acquireSlot(g_img3DBinding);
+    storageInfos[m] = vk::DescriptorImageInfo{
+      .imageView    = impl->m_storageViews[m],
+      .imageLayout  = vk::ImageLayout::eGeneral
+    };
+    storageWrites[m] = vk::WriteDescriptorSet{
+      .dstSet           = m_set,
+      .dstBinding       = g_img3DBinding,
+      .dstArrayElement  = slot,
+      .descriptorCount  = 1,
+      .descriptorType   = vk::DescriptorType::eStorageImage,
+      .pImageInfo       = &storageInfos[m]
+    };
+    impl->m_heapIndicesStorage[m] = slot;
+  }
+
+  if (mipCount > 0)
+    m_device.updateDescriptorSets(storageWrites, nullptr);
+
+  impl->m_heapIndexStorage = mipCount > 0 ? impl->m_heapIndicesStorage[0] : 0xFFFFFFFFu;
+  impl->m_storageBinding   = g_img3DBinding;
 }
 
 uint32_t DescriptorHeap::addImg2DStorageOnly(vk::ImageView view) {
