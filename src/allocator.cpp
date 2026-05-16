@@ -215,13 +215,15 @@ std::shared_ptr<Sampler::Impl> Allocator::createSampler(const SamplerSettings& s
   s.anisotropicFiltering = m_anisotropySupport && settings.anisotropicFiltering;
 
   vk::Sampler sampler = m_device.createSampler(vk::SamplerCreateInfo{
-    .magFilter    = static_cast<vk::Filter>(s.magFilter),
-    .minFilter    = static_cast<vk::Filter>(s.minFilter),
-    .addressModeU = static_cast<vk::SamplerAddressMode>(s.uMode),
-    .addressModeV = static_cast<vk::SamplerAddressMode>(s.vMode),
-    .addressModeW = static_cast<vk::SamplerAddressMode>(s.wMode),
+    .magFilter        = static_cast<vk::Filter>(s.magFilter),
+    .minFilter        = static_cast<vk::Filter>(s.minFilter),
+    .mipmapMode       = static_cast<vk::SamplerMipmapMode>(s.mipmapMode),
+    .addressModeU     = static_cast<vk::SamplerAddressMode>(s.uMode),
+    .addressModeV     = static_cast<vk::SamplerAddressMode>(s.vMode),
+    .addressModeW     = static_cast<vk::SamplerAddressMode>(s.wMode),
     .anisotropyEnable = s.anisotropicFiltering,
-    .maxAnisotropy    = m_maxAnisotropy
+    .maxAnisotropy    = m_maxAnisotropy,
+    .maxLod           = vk::LodClampNone
   });
 
   auto impl = std::make_shared<Sampler::Impl>(

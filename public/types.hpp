@@ -240,6 +240,7 @@ struct Settings {
 struct SamplerSettings {
   Filter magFilter = Filter::Linear;
   Filter minFilter = Filter::Linear;
+  Filter mipmapMode = Filter::Linear;
   SampleMode uMode = SampleMode::Repeat;
   SampleMode vMode = SampleMode::Repeat;
   SampleMode wMode = SampleMode::Repeat;
