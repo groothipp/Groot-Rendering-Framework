@@ -99,18 +99,15 @@ int main() {
     .cullMode     = grf::CullMode::None,
   });
 
-  auto cmds     = grf.createCmdRing(grf::QueueType::Graphics);
-  auto acquired = grf.createSemaphoreRing();
-  auto rendered = grf.createSemaphoreRing();
-  auto fences   = grf.createFenceRing(/*signaled=*/true);
+  auto cmds       = grf.createCmdRing(grf::QueueType::Graphics);
+  auto flightRing = grf.createSyncRing();
 
   while (grf.running()) {
     auto [idx, dt] = grf.beginFrame();
 
-    grf.waitFences({ fences[idx] });
-    grf.resetFences({ fences[idx] });
+    grf.wait(flightRing[idx]);
 
-    auto swap = grf.nextSwapchainImage(acquired[idx]);
+    auto swap = grf.nextSwapchainImage();
 
     cmds[idx].begin();
     cmds[idx].transition(swap, grf::Layout::Undefined,
@@ -129,11 +126,9 @@ int main() {
                                 grf::Layout::PresentSrc);
     cmds[idx].end();
 
-    grf.submit(cmds[idx],
-               std::array{ acquired[idx] },
-               std::array{ rendered[idx] },
-               fences[idx]);
-    grf.present(swap, std::array{ rendered[idx] });
+    grf::Sync done = grf.submit(cmds[idx], std::array{ swap.sync() });
+    flightRing[idx] = done;
+    grf.present(swap, std::array{ done });
     grf.endFrame();
   }
 }
@@ -166,13 +161,16 @@ and fragment shaders. `colorFormats` must match the format of whatever you
 will render to (the swapchain in this case — `bgra8_srgb` matches the
 default `Settings::swapchainFormat`).
 
-`createCmdRing` / `createSemaphoreRing` / `createFenceRing`. Allocate
-per-frame state, sized for the number of frames in flight (default 2).
+`createCmdRing` / `createSyncRing`. Allocate per-frame command buffers and
+a ring of `Sync`s for flight-frame tracking, both sized to
+`Settings::flightFrames` (default 2).
 
-The frame loop: wait for the GPU to finish the previous use of this
-slot's command buffer, acquire the next swapchain image, record (transition
-to color attachment layout, begin rendering, bind pipeline, draw, end
-rendering, transition to present layout), submit, present, end frame.
+The frame loop: wait for the GPU to finish the previous use of this slot's
+command buffer (`grf.wait(flightRing[idx])`), acquire the next swapchain
+image, record (transition to color attachment layout, begin rendering, bind
+pipeline, draw, end rendering, transition to present layout), submit
+(capturing the returned `Sync`), record that `Sync` into the flight ring
+slot so the next iteration can wait on it, present, end frame.
 
 ## Common issues
 
@@ -186,9 +184,11 @@ winding flips). Setting `cullMode = CullMode::None` is the safe default
 when you are not sure. To use back-face culling, you may need to swap two
 vertex positions or set `frontFace = FrontFace::Clockwise`.
 
-**Crash on first frame.** Check that `fences` were created with
-`signaled = true`. Otherwise the first `waitFences` waits forever on a
-fence that no one has ever signaled.
+**First frame hangs.** Shouldn't happen with the `Sync` API — the flight
+ring's slots start default-invalid, and `grf.wait` on an invalid `Sync` is
+a no-op. If you're hanging anyway, double-check you're not calling
+`grf.wait(done)` (waiting on this frame's own work) by accident; you want
+`grf.wait(flightRing[idx])`.
 
 ## Where to next
 

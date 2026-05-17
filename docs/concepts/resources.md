@@ -105,9 +105,7 @@ for (uint32_t z = 0; z < depth; ++z)
   noise.write(z, sliceData[z], grf::Layout::ShaderReadOptimal);
 ```
 
-The framework allocates a staging buffer, copies, transitions
-`Undefined → TransferDstOptimal → <requested layout>`. The upload happens
-on a dedicated worker thread; `beginFrame` flushes pending uploads.
+See [Uploads](#uploads) below for how the staging pipeline actually runs.
 
 ### Sample
 
@@ -167,9 +165,13 @@ sampled from shaders (e.g., screen-space effects reading the depth buffer).
 
 ## `SwapchainImage`
 
-Returned by `grf.nextSwapchainImage(acquired)`. Owned by the swapchain.
-Usable as color attachment, copy/blit source, copy/blit destination. Not
-sampled, not stored to.
+Returned by `grf.nextSwapchainImage()`. Owned by the swapchain. Usable as
+color attachment, copy/blit source, copy/blit destination. Not sampled,
+not stored to.
+
+`SwapchainImage::sync()` returns the acquire `Sync` that gates rendering
+into the image — pass it to the first submit that touches it. See
+[api/resources.md#swapchainimage](../api/resources.md#swapchainimage).
 
 ────────────────────────────────────────────────────────────
 
@@ -213,6 +215,48 @@ the current layout per image internally; you must specify the correct
 `from` at every transition.
 
 `Undefined → X` is the only transition that does not preserve contents.
+
+────────────────────────────────────────────────────────────
+
+## Uploads
+
+When you call `buf.write(data)` (for `GPUOnly`/`SingleUpdate` buffers) or
+`tex.write(...)` / `img.write(...)`, the framework queues an upload to its
+internal transfer queue. The pipeline:
+
+1. **Schedule.** `write` copies your data into an internal queue entry and
+   returns immediately. CPU not blocked.
+2. **Batch (`beginFrame`).** At each frame's start, the resource manager
+   drains up to `Settings::uploadBytesPerFrame` bytes (default 64 MB) from
+   the queue into the next transfer submission. Leftover entries stay
+   queued for subsequent frames — this is the **time-slicing** mechanism
+   that keeps any single frame's transfer work bounded.
+3. **Stage.** A worker thread allocates from the persistent staging ring
+   (a single large `HOST_VISIBLE | SEQUENTIAL_WRITE | MAPPED` buffer
+   created at startup), `memcpy`s the user data into the ring at the next
+   free offset, records `vkCmdCopyBufferToImage` / `vkCmdCopyBuffer`,
+   submits to the transfer queue.
+4. **Auto-wait at `submit`.** When you call `grf.submit(cmd, waits)`, the
+   framework auto-injects a wait on the pending transfer timeline value.
+   The GPU work runs in parallel with your CPU recording until the actual
+   submit, at which point the timeline ensures GPU ordering.
+5. **Drain (next `beginFrame`).** When the previous frame's transfer
+   completes (queried via the transfer timeline), the staging ring head
+   resets and the cmd buffer is recycled.
+
+Items larger than `uploadBytesPerFrame` get a one-shot staging buffer
+allocated outside the ring (fallback path); the ring handles the common
+case of many small-to-medium uploads.
+
+The host-visible `FrequentUpdate` intent bypasses staging entirely —
+`buf.write(data)` writes directly into mapped memory.
+
+### Tuning
+
+Bump `Settings::uploadBytesPerFrame` if you have a small number of large
+textures and want them resident faster (cost: more memory pressure +
+longer per-frame transfer work). Reduce it if you have many small uploads
+per frame and want smoother first-frame timing.
 
 ────────────────────────────────────────────────────────────
 

@@ -9,8 +9,8 @@ Read in order:
    else follows from.
 3. [Resources](concepts/resources.md) — buffers, images, samplers.
 4. [Shaders (GSL)](concepts/shaders.md) — the shader DSL.
-5. [Synchronization](concepts/synchronization.md) — fences, semaphores,
-   barriers, lifetime tracking.
+5. [Synchronization](concepts/synchronization.md) — the `Sync` timeline
+   primitive, barriers, lifetime tracking.
 
 ## Tasks
 
@@ -26,7 +26,7 @@ Read in order:
 | [api/cmd.md](api/cmd.md)             | `CommandBuffer` — every recording method |
 | [api/resources.md](api/resources.md) | Buffer, Tex, Img, Cubemap, DepthImage, Sampler, SwapchainImage |
 | [api/pipelines.md](api/pipelines.md) | Graphics + compute pipeline construction |
-| [api/sync.md](api/sync.md)           | Fence, Semaphore                        |
+| [api/sync.md](api/sync.md)           | `Sync` timeline primitive               |
 | [api/shader.md](api/shader.md)       | Shader handle and compileShader          |
 | [api/profiler.md](api/profiler.md)   | GPU-timestamp zone profiling             |
 | [api/gui.md](api/gui.md)             | ImGui lifecycle and integration          |
@@ -40,7 +40,9 @@ Read in order:
 - Code is real and compileable unless explicitly marked.
 - `grf::` prefix shown in code, omitted in prose.
 - "Handle" means a public type wrapping `shared_ptr<Impl>` (Buffer, Tex2D,
-  GraphicsPipeline, Fence, ...).
+  GraphicsPipeline, CommandBuffer, ...). `Sync` is the one public type that
+  isn't a handle — it's a small value type representing a moment on an
+  internal timeline.
 - "Bindless" means resource lookup by integer index from a single global
   descriptor set.
 - `.gsl` files are GSL source, compiled at runtime by `grf.compileShader`.

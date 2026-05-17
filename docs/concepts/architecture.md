@@ -51,13 +51,18 @@ structure inputs.
 
 ## 3. PIMPL handles, all value types
 
-Every public type — `Buffer`, `Tex2D`, `Img2D`, `Cubemap`, `DepthImage`,
-`Sampler`, `Fence`, `Semaphore`, `CommandBuffer`, `GraphicsPipeline`,
-`ComputePipeline`, `Shader` — wraps `std::shared_ptr<Impl>`.
+Owning resource handles — `Buffer`, `Tex2D`, `Img2D`, `Cubemap`,
+`DepthImage`, `Sampler`, `CommandBuffer`, `GraphicsPipeline`,
+`ComputePipeline`, `Shader` — wrap `std::shared_ptr<Impl>`.
 
 - Copy is one shared_ptr increment.
 - Default constructor produces a null handle. Methods on a null handle crash.
 - The implementation lives in `internal/`, hidden from consumers.
+
+`Sync` is a lighter value type — three `uint64_t`s, no allocation. It
+refers to a moment on one of the framework-owned timeline semaphores;
+multiple `Sync`s can refer to the same moment without any reference
+counting needed.
 
 ## 4. Vulkan 1.3 only
 
@@ -65,7 +70,7 @@ GRF requires:
 
 - Dynamic rendering (no render passes, no framebuffers)
 - Synchronization2 (no v1 access flags)
-- Timeline semaphores (no per-resource binary fences)
+- Timeline semaphores (used as the only public sync primitive — see [synchronization](synchronization.md))
 - Descriptor indexing with `eUpdateAfterBind` and `ePartiallyBound`
 - Buffer device address
 - `hostQueryReset`
@@ -96,33 +101,35 @@ for this frame. Returns the rotation index `idx ∈ [0, flightFrames)` and the
 previous frame's wall-clock duration as `float`.
 
 ```cpp
-grf.waitFences({ fences[idx] });
-grf.resetFences({ fences[idx] });
+grf.wait(flightRing[idx]);
 ```
 
-Wait for the GPU to finish its previous use of `cmds[idx]`. Required before
-recording over it.
+Host wait for the GPU's previous use of `cmds[idx]`. Required before
+recording over it. No-op on first frame (default-invalid `Sync`).
 
 ```cpp
-auto swap = grf.nextSwapchainImage(acquired[idx]);
+auto swap = grf.nextSwapchainImage();
 ```
 
-Acquire next swapchain image. `acquired[idx]` is signaled when the image is
-ready.
+Acquire next swapchain image. The acquire `Sync` is bundled inside `swap` —
+get it back out via `swap.sync()`.
 
 ```cpp
 cmds[idx].begin();
 // record
 cmds[idx].end();
 
-grf.submit(cmds[idx], { acquired[idx] }, { rendered[idx] }, fences[idx]);
-grf.present(swap, { rendered[idx] });
+Sync done = grf.submit(cmds[idx], { swap.sync() });
+flightRing[idx] = done;
+grf.present(swap, { done });
 grf.endFrame();
 ```
 
-`submit` waits on `acquired`, signals `rendered` and `fences[idx]`. `present`
-waits on `rendered`. `endFrame` rotates `frameIndex` and drains retired
-graves.
+`submit` waits on `swap.sync()` (plus any pending resource uploads, auto-
+injected), returns a `Sync` representing completion. The flight ring slot
+records that `Sync` for next iteration's host wait. `present` waits on the
+returned `Sync`, queuing the image to the compositor. `endFrame` rotates
+`frameIndex` and drains retired graves.
 
 ────────────────────────────────────────────────────────────
 

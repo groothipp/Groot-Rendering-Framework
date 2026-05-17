@@ -134,10 +134,8 @@ int main() {
     uint32_t sampler;
   };
 
-  auto cmds     = grf.createCmdRing(grf::QueueType::Graphics);
-  auto acquired = grf.createSemaphoreRing();
-  auto rendered = grf.createSemaphoreRing();
-  auto fences   = grf.createFenceRing(true);
+  auto cmds       = grf.createCmdRing(grf::QueueType::Graphics);
+  auto flightRing = grf.createSyncRing();
 
   float t = 0;
 
@@ -145,10 +143,9 @@ int main() {
     auto [idx, dt] = grf.beginFrame();
     t += dt;
 
-    grf.waitFences({ fences[idx] });
-    grf.resetFences({ fences[idx] });
+    grf.wait(flightRing[idx]);
 
-    auto swap = grf.nextSwapchainImage(acquired[idx]);
+    auto swap = grf.nextSwapchainImage();
 
     cmds[idx].begin();
 
@@ -192,11 +189,9 @@ int main() {
 
     cmds[idx].end();
 
-    grf.submit(cmds[idx],
-               std::array{ acquired[idx] },
-               std::array{ rendered[idx] },
-               fences[idx]);
-    grf.present(swap, std::array{ rendered[idx] });
+    grf::Sync done = grf.submit(cmds[idx], std::array{ swap.sync() });
+    flightRing[idx] = done;
+    grf.present(swap, std::array{ done });
     grf.endFrame();
   }
 }

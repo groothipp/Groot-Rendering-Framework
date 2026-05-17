@@ -17,18 +17,24 @@ pipeline layout created, ImGui initialized.
 
 ```cpp
 struct Settings {
-  std::string                   windowTitle        = "GRF Application";
-  std::pair<uint32_t, uint32_t> windowSize         = { 1280u, 720u };
-  std::string                   applicationVersion = "1.0.0";
-  uint32_t                      flightFrames       = 2;
-  Format                        swapchainFormat    = Format::bgra8_srgb;
-  PresentMode                   presentMode        = PresentMode::VSync;
+  std::string                   windowTitle         = "GRF Application";
+  std::pair<uint32_t, uint32_t> windowSize          = { 1280u, 720u };
+  std::string                   applicationVersion  = "1.0.0";
+  uint32_t                      flightFrames        = 2;
+  Format                        swapchainFormat     = Format::bgra8_srgb;
+  PresentMode                   presentMode         = PresentMode::VSync;
+  std::size_t                   uploadBytesPerFrame = 64ull * 1024ull * 1024ull;
 };
 ```
 
 `flightFrames` controls how many frames the GPU can have in flight at once.
-Most ring sizes (`createCmdRing`, `createFenceRing`) match this. Setting
+Most ring sizes (`createCmdRing`, `createSyncRing`) match this. Setting
 higher than 3 is unusual.
+
+`uploadBytesPerFrame` caps how much data the resource manager pushes to the
+GPU per `beginFrame` (default 64 MB). Larger upload queues are time-sliced
+across multiple frames. Items larger than this budget fall back to one-shot
+staging allocations. See [concepts/resources.md](../concepts/resources.md#uploads).
 
 ────────────────────────────────────────────────────────────
 
@@ -59,9 +65,10 @@ Rotates `frameIndex`. Drains retired resource graves.
 void waitForResourceUpdates();
 ```
 
-Block until all queued buffer/image uploads have completed on the GPU.
-Already called internally by `beginFrame`; only call directly if you need
-the data ready before submitting subsequent commands.
+Block until all queued buffer/image uploads have completed on the GPU. In a
+typical render loop you don't need this — every `submit` auto-injects a GPU
+wait on pending uploads. Call directly for synchronous-init paths or before
+CPU readback (`buf.read<T>()`).
 
 ────────────────────────────────────────────────────────────
 
@@ -106,58 +113,57 @@ instance.
 ## Swapchain
 
 ```cpp
-SwapchainImage nextSwapchainImage(const Semaphore& signalOnAcquire);
+SwapchainImage nextSwapchainImage();
 ```
 
-Acquires the next swapchain image. `signalOnAcquire` is signaled by the
-swapchain when the image is ready. Pass it as a wait to `submit`.
+Acquires the next swapchain image. The framework cycles through an internal
+pool of binary acquire semaphores; the returned `SwapchainImage` exposes
+its current acquire `Sync` via `image.sync()`. Pass that to the first
+submit that touches the image.
 
 ```cpp
-void present(const SwapchainImage&, std::span<const Semaphore> waits = {});
+void present(const SwapchainImage&, std::span<const Sync> waits = {});
 ```
 
-Queue the image for the compositor. `waits` should include the semaphore
-your render submission signaled, so present does not happen until rendering
-completes.
+Queue the image for the compositor. `waits` should include the `Sync`
+returned by your render submission so present doesn't happen until
+rendering completes. Internally the framework translates the timeline-based
+`Sync`s into the binary semaphore that `vkQueuePresentKHR` requires.
 
 ────────────────────────────────────────────────────────────
 
-## Submission
+## Submission and waits
 
 ```cpp
-void submit(
+Sync submit(
   const CommandBuffer&,
-  std::span<const Semaphore> waits   = {},
-  std::span<const Semaphore> signals = {},
-  std::optional<Fence>       signalFence = std::nullopt
+  std::span<const Sync> waits = {}
 );
 ```
 
 Submits the command buffer to its target queue (determined by the queue
-type the cmd ring was created with). Waits on `waits` before starting,
-signals `signals` and `signalFence` on completion.
-
-────────────────────────────────────────────────────────────
-
-## Fences and semaphores
+type the cmd ring was created with). Waits on `waits` (plus any pending
+resource uploads, auto-injected) before starting. Returns a `Sync`
+representing the moment this work completes.
 
 ```cpp
-Fence     createFence(bool signaled = false);
-Semaphore createSemaphore();
-
-Ring<Fence>     createFenceRing(bool signaled = false);
-Ring<Semaphore> createSemaphoreRing();
+void wait(const Sync&);
+void wait(std::span<const Sync>);
 ```
 
-`createSemaphoreRing` sizes to `max(flightFrames, swapchainImageCount)` —
-larger than other rings to avoid swapchain semaphore reuse hazards.
+CPU host wait on one or more `Sync`s. Blocks the calling thread until the
+GPU work each refers to has finished. Default-invalid `Sync`s are skipped
+(important for first-frame flight-ring slots).
 
 ```cpp
-void waitFences(const std::vector<Fence>&);
-void resetFences(const std::vector<Fence>&);
+Ring<Sync> createSyncRing();
 ```
 
-Block until all listed fences are signaled / reset them to unsignaled.
+Returns a `Ring<Sync>` with `flightFrames` default-constructed (invalid)
+slots. Standard flight pattern: assign each frame's terminal `Sync` into
+the slot; `wait` on the slot at the top of the next iteration.
+
+See [api/sync.md](sync.md) and [concepts/synchronization.md](../concepts/synchronization.md).
 
 ────────────────────────────────────────────────────────────
 
@@ -235,20 +241,30 @@ pool. Index by frame index to record per-frame.
 ## Free functions
 
 ```cpp
-ImageData readImage(const std::string& path);
+std::future<ImageData> readImage(const std::string& path);
 ```
 
-Decodes an image file via stb_image. Returns
-`ImageData{ bytes, width, height, format }` for uploading to a texture via
-`tex.write(...)`. The `format` field is the best-fit `grf::Format` for the
-decoded bit depth:
+Decodes an image file via stb_image on a worker thread. Returns a
+`std::future<ImageData>` — call `.get()` when you need the pixel data.
 
-- LDR formats (PNG, JPG, BMP) → `rgba8_unorm`
-- 16-bit PNGs → `rgba16_unorm`
-- HDR (Radiance `.hdr`) → `rgba32_sfloat`
+The returned `format` field is chosen by the file's bit depth *and* channel
+count:
 
-All decoded images are 4-channel — channels missing from the source are
-filled with white (alpha) or replicated (greyscale → RGB). You can pass
-`img.format` directly to `createTex2D` to match the decoded data, or pick
-a different format (e.g. `rgba8_srgb` for sRGB-encoded PNGs) at the cost of
-needing the bit-depth to line up.
+| Source bit depth | Source channels | Returned `format`   | Bytes / pixel |
+|------------------|-----------------|---------------------|---------------|
+| 8-bit (PNG/JPG)  | 1               | `r8_unorm`          | 1             |
+| 8-bit            | 2, 3, 4         | `rgba8_unorm`       | 4             |
+| 16-bit PNG       | 1               | `r16_unorm`         | 2             |
+| 16-bit           | 2, 3, 4         | `rgba16_unorm`      | 8             |
+| HDR (`.hdr`)     | 1               | `r32_sfloat`        | 4             |
+| HDR              | 2, 3, 4         | `rgba32_sfloat`     | 16            |
+
+Single-channel detection avoids the old "load grayscale-as-RGBA" 4× memory
+waste — common for PBR roughness / AO / metalness / height maps. The
+shader can sample `.r` from a single-channel texture; reading `.gba` will
+return `(0, 0, 1)` per Vulkan's component swizzle rules, so make sure your
+shader is channel-aware.
+
+Pass `img.format` directly to `createTex2D` to match the decoded data, or
+pick a different format (e.g. `rgba8_srgb` for sRGB-encoded color textures)
+at the cost of needing the bit depth and channel count to line up.

@@ -24,37 +24,37 @@ factories on `GRF`:
 
 ```cpp
 Ring<CommandBuffer> createCmdRing(QueueType);
-Ring<Fence>         createFenceRing(bool signaled = false);
-Ring<Semaphore>     createSemaphoreRing();
+Ring<Sync>          createSyncRing();
 Ring<Buffer>        createBufferRing(BufferIntent, std::size_t bytes);
 Ring<Img2D>         createImg2DRing(Format, uint32_t w, uint32_t h);
 Ring<Img3D>         createImg3DRing(Format, uint32_t w, uint32_t h, uint32_t d);
 ```
 
-Most rings are sized to `flightFrames` (default 2). Exception:
-`createSemaphoreRing` sizes to `max(flightFrames, swapchainImageCount)` to
-avoid swapchain semaphore reuse hazards (see
-[concepts/synchronization.md](../concepts/synchronization.md)).
+All rings are sized to `flightFrames` (default 2).
 
 ## Usage
 
 ```cpp
-auto cmds   = grf.createCmdRing(grf::QueueType::Graphics);
-auto fences = grf.createFenceRing(/*signaled=*/true);
+auto cmds       = grf.createCmdRing(grf::QueueType::Graphics);
+auto flightRing = grf.createSyncRing();
 
 while (grf.running()) {
   auto [idx, dt] = grf.beginFrame();
 
-  grf.waitFences({ fences[idx] });
-  grf.resetFences({ fences[idx] });
+  grf.wait(flightRing[idx]);
 
   cmds[idx].begin();
   // ...
   cmds[idx].end();
 
-  grf.submit(cmds[idx], ..., fences[idx]);
+  grf::Sync done  = grf.submit(cmds[idx], { swap.sync() });
+  flightRing[idx] = done;
 }
 ```
+
+`Ring<Sync>` slots start default-constructed (invalid). `grf.wait` on an
+invalid `Sync` is a no-op, so the first frame doesn't hang waiting on
+prior work that doesn't exist.
 
 ## Storing in your own classes
 
@@ -63,13 +63,11 @@ Default-constructible, so this works:
 ```cpp
 class MyRenderer {
   grf::Ring<grf::CommandBuffer> m_cmds;
-  grf::Ring<grf::Semaphore>     m_acquired;
-  grf::Ring<grf::Fence>         m_fences;
+  grf::Ring<grf::Sync>          m_flight;
 
   void init(grf::GRF& grf) {
-    m_cmds     = grf.createCmdRing(grf::QueueType::Graphics);
-    m_acquired = grf.createSemaphoreRing();
-    m_fences   = grf.createFenceRing(true);
+    m_cmds   = grf.createCmdRing(grf::QueueType::Graphics);
+    m_flight = grf.createSyncRing();
   }
 };
 ```

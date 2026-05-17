@@ -211,9 +211,25 @@ class SwapchainImage {
 public:
   SwapchainImage() = default;
   uint32_t heapIndex() const;
+  Sync     sync() const;
 };
 ```
 
-Returned by `grf.nextSwapchainImage(acquired)`. Owned by the swapchain;
-not user-allocated. Usable as color attachment / copy source / copy
+Returned by `grf.nextSwapchainImage()`. Owned by the swapchain; not
+user-allocated. Usable as color attachment / copy source / copy
 destination / blit source / blit destination. Not sampled, not stored to.
+
+`sync()` returns the acquire `Sync` — the gate between "GPU got told to
+draw to this image" and "the swapchain image is actually ready." Pass it
+as a wait to the first submit that uses the image:
+
+```cpp
+SwapchainImage swap = grf.nextSwapchainImage();
+/* ... record cmd that writes to swap ... */
+Sync done = grf.submit(cmd, { swap.sync() });
+grf.present(swap, { done });
+```
+
+Internally the acquire `Sync` wraps a binary semaphore (the one place
+Vulkan still mandates binary semaphores). The framework handles the
+binary↔timeline translation in `submit` and `present`.

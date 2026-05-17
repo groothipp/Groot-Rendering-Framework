@@ -157,13 +157,10 @@ layout (the framework records this internally).
 
 `Undefined → X` is the only transition that does not preserve contents.
 
-```cpp
-void release(const TransitionImage&, Layout from, Layout to, QueueType dstQueue);
-void acquire(const TransitionImage&, Layout from, Layout to, QueueType srcQueue);
-```
-
-Queue ownership transfer. Required when the image moves between queue
-families. No-op when the source and destination map to the same family.
+Cross-queue access doesn't need explicit ownership transfer barriers —
+images are created with `vk::SharingMode::eConcurrent` when the device
+exposes distinct queue families. See
+[concepts/synchronization.md](../concepts/synchronization.md#queue-families).
 
 ────────────────────────────────────────────────────────────
 

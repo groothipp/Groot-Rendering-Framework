@@ -87,8 +87,8 @@ int main() {
     .cullMode     = grf::CullMode::None,
   });
 
-  // Load image from disk
-  grf::ImageData img = grf::readImage(std::format("{}/crate.png", ASSET_DIR));
+  // Load image from disk (returns a future — decoded on a worker thread)
+  grf::ImageData img = grf::readImage(std::format("{}/crate.png", ASSET_DIR)).get();
 
   // Allocate texture, upload pixels, leave in ShaderReadOptimal
   auto tex = grf.createTex2D(grf::Format::rgba8_srgb, img.width, img.height);
@@ -106,18 +106,15 @@ int main() {
   // Push struct must match the GSL `push { }` block exactly under std430.
   struct PushData { uint32_t albedo; uint32_t sampler; };
 
-  auto cmds     = grf.createCmdRing(grf::QueueType::Graphics);
-  auto acquired = grf.createSemaphoreRing();
-  auto rendered = grf.createSemaphoreRing();
-  auto fences   = grf.createFenceRing(true);
+  auto cmds       = grf.createCmdRing(grf::QueueType::Graphics);
+  auto flightRing = grf.createSyncRing();
 
   while (grf.running()) {
     auto [idx, dt] = grf.beginFrame();
 
-    grf.waitFences({ fences[idx] });
-    grf.resetFences({ fences[idx] });
+    grf.wait(flightRing[idx]);
 
-    auto swap = grf.nextSwapchainImage(acquired[idx]);
+    auto swap = grf.nextSwapchainImage();
 
     cmds[idx].begin();
     cmds[idx].transition(swap, grf::Layout::Undefined,
@@ -135,11 +132,9 @@ int main() {
                                 grf::Layout::PresentSrc);
     cmds[idx].end();
 
-    grf.submit(cmds[idx],
-               std::array{ acquired[idx] },
-               std::array{ rendered[idx] },
-               fences[idx]);
-    grf.present(swap, std::array{ rendered[idx] });
+    grf::Sync done = grf.submit(cmds[idx], std::array{ swap.sync() });
+    flightRing[idx] = done;
+    grf.present(swap, std::array{ done });
     grf.endFrame();
   }
 }
@@ -151,19 +146,24 @@ The shader now declares `push { uint albedo; uint linearSampler; }` — two
 uint heap indices. On the C++ side, a matching `PushData` struct is pushed
 once per frame.
 
-`grf::readImage(path)` decodes via stb_image. The result has byte data,
-width, height, and a best-fit `format` (`rgba8_unorm` for LDR PNG/JPG,
-`rgba16_unorm` for 16-bit PNGs, `rgba32_sfloat` for HDR). The example
-above hardcodes `rgba8_srgb` for the texture because PNG colors are
-sRGB-encoded; if you're loading data that's already linear (HDR, normal
-maps, roughness, etc.) pass `img.format` to `createTex2D` instead.
-`Tex2D::write(bytes, finalLayout)` queues a staging copy + transition; the
-upload happens on a worker thread before the next `waitForResourceUpdates()`
-(which `beginFrame` triggers).
+`grf::readImage(path)` returns a `std::future<ImageData>` — decoded on a
+worker thread via stb_image. The result has byte data, width, height, and a
+best-fit `format` chosen from the file's bit depth and channel count:
 
-The first frame's render submission may fence-wait on the upload completing
-internally (the resource manager tracks last-use values); you do not need
-to add explicit fencing.
+- 1-channel grayscale → `r8_unorm` / `r16_unorm` / `r32_sfloat`
+- 3- or 4-channel → `rgba8_unorm` / `rgba16_unorm` / `rgba32_sfloat`
+
+The example above hardcodes `rgba8_srgb` for the texture because PNG colors
+are sRGB-encoded; if you're loading data that's already linear (HDR, normal
+maps, roughness, AO, metalness, height) pass `img.format` to `createTex2D`
+instead — particularly for grayscale source files, this halves or quarters
+the upload size compared to the old always-RGBA decode.
+
+`Tex2D::write(bytes, finalLayout)` queues a staging copy + transition. The
+upload runs on the framework's transfer queue, time-sliced across frames
+per `Settings::uploadBytesPerFrame` (default 64 MB / frame). The next
+`grf.submit` auto-injects a GPU wait on the pending upload — you don't need
+to call `waitForResourceUpdates` in your render loop.
 
 ## Common issues
 
