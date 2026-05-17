@@ -24,10 +24,7 @@ int main() {
 
   Ring<CommandBuffer> graphCmdRing = grf.createCmdRing(QueueType::Graphics);
   Ring<CommandBuffer> compCmdRing = grf.createCmdRing(QueueType::Compute);
-  Ring<Fence> flightFenceRing = grf.createFenceRing(true);
-  Ring<Semaphore> imgSemRing = grf.createSemaphoreRing();
-  Ring<Semaphore> graphSemRing = grf.createSemaphoreRing();
-  Ring<Semaphore> compSemRing = grf.createSemaphoreRing();
+  Ring<Sync> syncRing = grf.createSyncRing();
 
   u32 particleCount = 0;
   u32 prevFrameIndex = g_flightFrames - 1;
@@ -57,17 +54,11 @@ int main() {
     auto& graphCmd = graphCmdRing[frameIndex];
     auto& compCmd = compCmdRing[frameIndex];
 
-    auto& flightFence = flightFenceRing[frameIndex];
-    auto& imgSem = imgSemRing[frameIndex];
-    auto& graphSem = graphSemRing[frameIndex];
-    auto& compSem = compSemRing[frameIndex];
-
     auto [prevPosBuf, prevVelBuf] = particles.buffers(prevFrameIndex);
 
-    grf.waitFences({ flightFence });
-    grf.resetFences({ flightFence });
+    grf.wait(syncRing[frameIndex]);
 
-    SwapchainImage swapchainImage = grf.nextSwapchainImage({ imgSem });
+    SwapchainImage swapchainImage = grf.nextSwapchainImage();
     ColorAttachment swapchainAttachment{
       .img      = swapchainImage,
       .loadOp   = LoadOp::Clear,
@@ -188,11 +179,10 @@ int main() {
     graphCmd.transition(swapchainImage, Layout::ColorAttachmentOptimal, Layout::PresentSrc);
     graphCmd.end();
 
-    grf.waitForResourceUpdates();
-
-    grf.submit(compCmd, {}, { compSem });
-    grf.submit(graphCmd, { imgSem, compSem }, { graphSem }, flightFence);
-    grf.present(swapchainImage, { graphSem });
+    Sync compDone = grf.submit(compCmd, {});
+    Sync graphDone = grf.submit(graphCmd, { swapchainImage.sync(), compDone });
+    syncRing[frameIndex] = graphDone;
+    grf.present(swapchainImage, { graphDone });
 
     if (particleCount > 0 && shouldReset) {
       particles.reset(g_flightFrames);

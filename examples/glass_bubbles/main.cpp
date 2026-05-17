@@ -32,9 +32,9 @@ static void LightDial(const char* label, f32* angle, f32 size = 80.0f) {
 
   if (ImGui::IsItemActive()) {
     ImVec2 mouse = ImGui::GetIO().MousePos;
-    f32    dx    = mouse.x - center.x;
-    f32    dy    = mouse.y - center.y;
-    *angle       = std::atan2(-dy, dx);
+    f32 dx = mouse.x - center.x;
+    f32 dy = mouse.y - center.y;
+    *angle = std::atan2(-dy, dx);
   }
 
   draw->AddCircle(center, radius - 2.0f, IM_COL32(180, 180, 180, 220), 0, 2.0f);
@@ -90,9 +90,7 @@ int main() {
   });
 
   Ring<CommandBuffer> cmdRing = grf.createCmdRing(QueueType::Graphics);
-  Ring<Fence> flightFenceRing = grf.createFenceRing(true);
-  Ring<Semaphore> imgSemRing = grf.createSemaphoreRing();
-  Ring<Semaphore> drawSemRing = grf.createSemaphoreRing();
+  Ring<Sync> syncRing = grf.createSyncRing();
 
   f32 liquidness = 0.15;
   f32 radius1 = 0.3;
@@ -146,14 +144,10 @@ int main() {
     }
 
     auto& cmd = cmdRing[frameIndex];
-    auto& flightFence = flightFenceRing[frameIndex];
-    auto& imgSem = imgSemRing[frameIndex];
-    auto& drawSem = drawSemRing[frameIndex];
 
-    grf.waitFences({ flightFence });
-    grf.resetFences({ flightFence });
+    grf.wait(syncRing[frameIndex]);
 
-    SwapchainImage swapchainImage = grf.nextSwapchainImage(imgSem);
+    SwapchainImage swapchainImage = grf.nextSwapchainImage();
     ColorAttachment swapchainAttachment{
       .img      = swapchainImage,
       .loadOp   = LoadOp::Clear,
@@ -189,10 +183,9 @@ int main() {
     cmd.transition(swapchainImage, Layout::ColorAttachmentOptimal, Layout::PresentSrc);
     cmd.end();
 
-    grf.waitForResourceUpdates();
-
-    grf.submit(cmd, { imgSem }, { drawSem }, flightFence);
-    grf.present(swapchainImage, { drawSem });
+    Sync done = grf.submit(cmd, { swapchainImage.sync() });
+    syncRing[frameIndex] = done;
+    grf.present(swapchainImage, { done });
 
     grf.endFrame();
   }
