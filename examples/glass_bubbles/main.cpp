@@ -78,7 +78,7 @@ int main() {
 
   Tex2D background;
   {
-    ImageData tex = readImage(std::format("{}/background.png", ASSETS));
+    ImageData tex = readImage(std::format("{}/background.png", ASSETS)).get();
     background = grf.createTex2D(tex.format, tex.width, tex.height);
     background.write(tex.bytes, Layout::ShaderReadOptimal);
   }
@@ -110,6 +110,7 @@ int main() {
     grf.profiler().render();
 
     ImGui::Begin("Settings");
+      ImGui::Text("Click and drag the bubbles to move them");
       ImGui::SliderFloat("Liquidess", &liquidness, 0.01, 1.0, "%.2f");
       ImGui::SliderFloat("Radius 1", &radius1, 0.1, 1.0, "%.1f");
       ImGui::SliderFloat("Radius 2", &radius2, 0.1, 1.0, "%.1f");
