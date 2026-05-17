@@ -13,6 +13,7 @@
 #include "./types.hpp"
 
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <string>
 #include <functional>
@@ -72,6 +73,6 @@ public:
   );
 };
 
-ImageData readImage(const std::string&);
+std::future<ImageData> readImage(const std::string&);
 
 }

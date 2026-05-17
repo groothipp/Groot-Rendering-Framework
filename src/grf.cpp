@@ -864,41 +864,43 @@ GRF::Impl::~Impl() {
   glfwTerminate();
 }
 
-ImageData readImage(const std::string& path) {
-  int width = 0, height = 0, channels = 0;
+std::future<ImageData> readImage(const std::string& path) {
+  return std::async(std::launch::async, [path]() -> ImageData {
+    int width = 0, height = 0, channels = 0;
 
-  void*       pixels        = nullptr;
-  std::size_t bytesPerPixel = 0;
-  Format      format        = Format::undefined;
+    void*       pixels        = nullptr;
+    std::size_t bytesPerPixel = 0;
+    Format      format        = Format::undefined;
 
-  if (stbi_is_hdr(path.c_str())) {
-    pixels        = stbi_loadf(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    bytesPerPixel = 4 * sizeof(float);
-    format        = Format::rgba32_sfloat;
-  } else if (stbi_is_16_bit(path.c_str())) {
-    pixels        = stbi_load_16(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    bytesPerPixel = 4 * sizeof(uint16_t);
-    format        = Format::rgba16_unorm;
-  } else {
-    pixels        = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    bytesPerPixel = 4 * sizeof(uint8_t);
-    format        = Format::rgba8_unorm;
-  }
+    if (stbi_is_hdr(path.c_str())) {
+      pixels        = stbi_loadf(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+      bytesPerPixel = 4 * sizeof(float);
+      format        = Format::rgba32_sfloat;
+    } else if (stbi_is_16_bit(path.c_str())) {
+      pixels        = stbi_load_16(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+      bytesPerPixel = 4 * sizeof(uint16_t);
+      format        = Format::rgba16_unorm;
+    } else {
+      pixels        = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+      bytesPerPixel = 4 * sizeof(uint8_t);
+      format        = Format::rgba8_unorm;
+    }
 
-  if (pixels == nullptr)
-    GRF_PANIC("Failed to load image '{}': {}", path, stbi_failure_reason());
+    if (pixels == nullptr)
+      GRF_PANIC("Failed to load image '{}': {}", path, stbi_failure_reason());
 
-  const std::size_t byteCount = static_cast<std::size_t>(width) * height * bytesPerPixel;
-  std::vector<std::byte> bytes(byteCount);
-  std::memcpy(bytes.data(), pixels, byteCount);
+    const std::size_t byteCount = static_cast<std::size_t>(width) * height * bytesPerPixel;
+    std::vector<std::byte> bytes(byteCount);
+    std::memcpy(bytes.data(), pixels, byteCount);
 
-  stbi_image_free(pixels);
-  return {
-    .bytes  = std::move(bytes),
-    .width  = static_cast<uint32_t>(width),
-    .height = static_cast<uint32_t>(height),
-    .format = format,
-  };
+    stbi_image_free(pixels);
+    return {
+      .bytes  = std::move(bytes),
+      .width  = static_cast<uint32_t>(width),
+      .height = static_cast<uint32_t>(height),
+      .format = format,
+    };
+  });
 }
 
 }
