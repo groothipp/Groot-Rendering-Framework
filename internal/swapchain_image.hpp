@@ -13,6 +13,7 @@ public:
   uint32_t        m_index = 0;
   uint32_t        m_heapIndexStorage = 0xFFFFFFFF;
   vk::ImageLayout m_layout = vk::ImageLayout::eUndefined;
+  vk::Semaphore   m_acquireSem = nullptr;
 
 public:
   Impl(vk::Image, vk::ImageView, uint32_t index, uint32_t heapIndexStorage = 0xFFFFFFFF);

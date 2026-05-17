@@ -235,6 +235,7 @@ struct Settings {
   uint32_t                      flightFrames = 2;
   Format                        swapchainFormat = Format::bgra8_srgb;
   PresentMode                   presentMode = PresentMode::VSync;
+  std::size_t                   uploadBytesPerFrame = 64ull * 1024ull * 1024ull;
 };
 
 struct SamplerSettings {

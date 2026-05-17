@@ -1,33 +1,29 @@
 #pragma once
 
-#include <memory>
+#include <cstdint>
 
 namespace grf {
 
-class Fence {
-  friend class GRF;
+class GRF;
+class CommandBuffer;
+class ResourceManager;
+class SwapchainImage;
 
-  class Impl;
-  std::shared_ptr<Impl> m_impl;
+class Sync {
+  friend class GRF;
+  friend class CommandBuffer;
+  friend class ResourceManager;
+  friend class SwapchainImage;
+
+  // VkSemaphore handle stored as opaque uint64 to avoid including <vulkan/vulkan.hpp>
+  // in public headers. Non-dispatchable Vulkan handles are 64-bit on all platforms.
+  uint64_t m_handle = 0;
+  uint64_t m_value  = 0;
+  uint8_t  m_kind   = 0;  // 0 = invalid, 1 = timeline, 2 = binary
 
 public:
-  Fence() = default;
-
-private:
-  explicit Fence(std::shared_ptr<Impl>);
-};
-
-class Semaphore {
-  friend class GRF;
-
-  class Impl;
-  std::shared_ptr<Impl> m_impl;
-
-public:
-  Semaphore() = default;
-
-private:
-  explicit Semaphore(std::shared_ptr<Impl>);
+  Sync() = default;
+  bool valid() const { return m_kind != 0; }
 };
 
 }

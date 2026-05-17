@@ -6,8 +6,11 @@
 
 #include "public/types.hpp"
 
+#include "public/sync.hpp"
+
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <future>
 #include <mutex>
 #include <vector>
@@ -58,13 +61,15 @@ class ResourceManager {
   vk::CommandBuffer                   m_bufferCmd = nullptr;
   vk::CommandBuffer                   m_imageCmd = nullptr;
 
-  std::vector<BufferUpdateInfo>       m_bufferUpdates;
+  std::deque<BufferUpdateInfo>        m_bufferUpdates;
   uint64_t                            m_bufferUpdateValue = 0;
   std::future<void>                   m_bufferUpdateFuture;
 
-  std::vector<ImageUpdateInfo>        m_imageUpdates;
+  std::deque<ImageUpdateInfo>         m_imageUpdates;
   uint64_t                            m_imageUpdateValue = 0;
   std::future<void>                   m_imageUpdateFuture;
+
+  std::size_t                         m_uploadBudget = 0;
 
   std::mutex                          m_graveyardMutex;
   std::vector<Grave>                  m_graveyard;
@@ -74,7 +79,8 @@ public:
     std::unique_ptr<Allocator>&,
     std::unique_ptr<DescriptorHeap>&,
     Queue& graphics, Queue& compute, Queue& transfer,
-    vk::Device&
+    vk::Device&,
+    std::size_t uploadBudget
   );
   ~ResourceManager();
 
@@ -87,6 +93,8 @@ public:
 
   void beginUpdates();
   void waitForUpdates();
+  void waitForUploadsSubmitted();
+  Sync pendingUploadSync() const;
 
   void scheduleDestruction(const Grave&);
   void drain();

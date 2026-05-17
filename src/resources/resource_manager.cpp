@@ -2,6 +2,7 @@
 #include "internal/log.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <iterator>
 
 namespace grf {
@@ -10,11 +11,13 @@ ResourceManager::ResourceManager(
   std::unique_ptr<Allocator>& allocator,
   std::unique_ptr<DescriptorHeap>& descriptorHeap,
   Queue& graphics, Queue& compute, Queue& transfer,
-  vk::Device& device
+  vk::Device& device,
+  std::size_t uploadBudget
 ) : m_allocator(allocator),
     m_descriptorHeap(descriptorHeap),
     m_queues{ &graphics, &compute, &transfer },
-    m_device(device) {
+    m_device(device),
+    m_uploadBudget(uploadBudget) {
   m_bufferTransferPool = m_device.createCommandPool(vk::CommandPoolCreateInfo{
     .flags            = vk::CommandPoolCreateFlagBits::eTransient,
     .queueFamilyIndex = transfer.index
@@ -81,33 +84,70 @@ void ResourceManager::writeImage(const ImageWriteInfo& info) {
   });
 }
 
+namespace {
+
+template <typename Info>
+std::vector<Info> drainBudget(std::deque<Info>& source, std::size_t& budget) {
+  std::vector<Info> batch;
+  while (!source.empty()) {
+    std::size_t sz = source.front().data.size();
+    if (!batch.empty() && sz > budget) break;
+    budget = sz < budget ? budget - sz : 0;
+    batch.emplace_back(std::move(source.front()));
+    source.pop_front();
+  }
+  return batch;
+}
+
+}
+
 void ResourceManager::beginUpdates() {
   if (m_bufferCmd != nullptr || m_imageCmd != nullptr)
     waitForUpdates();
 
-  if (!m_bufferUpdates.empty()) {
-    auto u = std::move(m_bufferUpdates);
+  std::size_t budget = m_uploadBudget;
+  auto bufferBatch = drainBudget(m_bufferUpdates, budget);
+  auto imageBatch  = drainBudget(m_imageUpdates,  budget);
+
+  if (!bufferBatch.empty()) {
     m_bufferUpdateValue = reserveValue(QueueType::Transfer);
     uint64_t v = m_bufferUpdateValue;
     m_bufferUpdateFuture = std::async(std::launch::async,
-      [this, u = std::move(u), v]() mutable {
+      [this, u = std::move(bufferBatch), v]() mutable {
         updateBuffers(std::move(u), v);
       }
     );
-    m_bufferUpdates.clear();
   }
 
-  if (!m_imageUpdates.empty()) {
-    auto u = std::move(m_imageUpdates);
+  if (!imageBatch.empty()) {
     m_imageUpdateValue = reserveValue(QueueType::Transfer);
     uint64_t v = m_imageUpdateValue;
     m_imageUpdateFuture = std::async(std::launch::async,
-      [this, u = std::move(u), v]() mutable {
+      [this, u = std::move(imageBatch), v]() mutable {
         updateImages(std::move(u), v);
       }
     );
-    m_imageUpdates.clear();
   }
+}
+
+void ResourceManager::waitForUploadsSubmitted() {
+  if (m_bufferUpdateFuture.valid()) m_bufferUpdateFuture.wait();
+  if (m_imageUpdateFuture.valid())  m_imageUpdateFuture.wait();
+}
+
+Sync ResourceManager::pendingUploadSync() const {
+  uint64_t value = std::max(m_bufferUpdateValue, m_imageUpdateValue);
+  Sync s;
+  if (value == 0) return s;
+
+  vk::Semaphore timeline = m_queues[static_cast<size_t>(QueueType::Transfer)]->timeline;
+  VkSemaphore raw = timeline;
+  uint64_t handle = 0;
+  std::memcpy(&handle, &raw, sizeof(VkSemaphore));
+  s.m_handle = handle;
+  s.m_value  = value;
+  s.m_kind   = 1;
+  return s;
 }
 
 void ResourceManager::waitForUpdates() {
@@ -156,10 +196,10 @@ void ResourceManager::updateBuffers(std::vector<BufferUpdateInfo> infos, uint64_
     auto res = m_allocator->writeBuffer(info.buf->m_address, info.data, info.offset);
     if (!res.has_value()) continue;
 
-    auto src = res.value();
+    auto handle = res.value();
 
-    m_bufferCmd.copyBuffer(src, info.buf->m_buffer, vk::BufferCopy{
-      .srcOffset  = 0,
+    m_bufferCmd.copyBuffer(handle.buffer, info.buf->m_buffer, vk::BufferCopy{
+      .srcOffset  = handle.offset,
       .dstOffset  = info.offset,
       .size       = info.data.size()
     });
@@ -195,33 +235,13 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t 
   for (auto& info: infos) {
     info.img->m_lastUseValues[static_cast<size_t>(QueueType::Transfer)] = value;
 
-    vk::PipelineStageFlags srcStage;
-    vk::AccessFlags        srcAccess;
-    switch (info.img->m_layout) {
-      case vk::ImageLayout::eUndefined:
-        srcStage  = vk::PipelineStageFlagBits::eTopOfPipe;
-        srcAccess = {};
-        break;
-      case vk::ImageLayout::eShaderReadOnlyOptimal:
-        srcStage  = vk::PipelineStageFlagBits::eAllGraphics | vk::PipelineStageFlagBits::eComputeShader;
-        srcAccess = vk::AccessFlagBits::eShaderRead;
-        break;
-      case vk::ImageLayout::eGeneral:
-        srcStage  = vk::PipelineStageFlagBits::eAllGraphics | vk::PipelineStageFlagBits::eComputeShader;
-        srcAccess = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite;
-        break;
-      case vk::ImageLayout::eTransferDstOptimal:
-        srcStage  = vk::PipelineStageFlagBits::eTransfer;
-        srcAccess = vk::AccessFlagBits::eTransferWrite;
-        break;
-      default:
-        srcStage  = vk::PipelineStageFlagBits::eAllCommands;
-        srcAccess = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite;
-        break;
-    }
+    const vk::PipelineStageFlags srcStage =
+      (info.img->m_layout == vk::ImageLayout::eUndefined)
+        ? vk::PipelineStageFlagBits::eTopOfPipe
+        : vk::PipelineStageFlagBits::eBottomOfPipe;
 
     vk::ImageMemoryBarrier transferBarrier{
-      .srcAccessMask    = srcAccess,
+      .srcAccessMask    = {},
       .dstAccessMask    = vk::AccessFlagBits::eTransferWrite,
       .oldLayout        = info.img->m_layout,
       .newLayout        = vk::ImageLayout::eTransferDstOptimal,
@@ -241,13 +261,14 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t 
       transferBarrier
     );
 
-    vk::Buffer buffer = m_allocator->stage(info.data);
+    StagingHandle handle = m_allocator->stage(info.data);
+    info.region.bufferOffset = handle.offset;
 
-    m_imageCmd.copyBufferToImage(buffer, info.img->m_image, vk::ImageLayout::eTransferDstOptimal, info.region);
+    m_imageCmd.copyBufferToImage(handle.buffer, info.img->m_image, vk::ImageLayout::eTransferDstOptimal, info.region);
 
     vk::ImageMemoryBarrier layoutBarrier{
       .srcAccessMask    = vk::AccessFlagBits::eTransferWrite,
-      .dstAccessMask    = vk::AccessFlagBits::eShaderRead,
+      .dstAccessMask    = {},
       .oldLayout        = vk::ImageLayout::eTransferDstOptimal,
       .newLayout        = info.layout,
       .image            = info.img->m_image,
@@ -261,7 +282,7 @@ void ResourceManager::updateImages(std::vector<ImageUpdateInfo> infos, uint64_t 
 
     m_imageCmd.pipelineBarrier(
       vk::PipelineStageFlagBits::eTransfer,
-      vk::PipelineStageFlagBits::eAllGraphics | vk::PipelineStageFlagBits::eComputeShader,
+      vk::PipelineStageFlagBits::eBottomOfPipe,
       {}, {}, {},
       layoutBarrier
     );
@@ -319,12 +340,6 @@ void ResourceManager::executeDrain(const Grave& grave) {
       break;
     case ResourceKind::Pipeline:
       m_device.destroyPipeline(grave.pipeline);
-      break;
-    case ResourceKind::Fence:
-      m_device.destroyFence(grave.fence);
-      break;
-    case ResourceKind::Semaphore:
-      m_device.destroySemaphore(grave.semaphore);
       break;
     case ResourceKind::CommandBuffer:
       m_device.freeCommandBuffers(grave.commandPool, { grave.commandBuffer });

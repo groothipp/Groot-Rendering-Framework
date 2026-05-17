@@ -400,9 +400,25 @@ void GRF::Impl::createSwapchain(vk::SwapchainKHR oldSwapchain) {
 
     m_swapchainImages.emplace_back(std::make_shared<SwapchainImage::Impl>(img, view, i, heapIndex));
   }
+
+  m_swapchainAcquireSems.reserve(m_swapchainImages.size());
+  m_presentBinarySems.reserve(m_swapchainImages.size());
+  for (std::size_t i = 0; i < m_swapchainImages.size(); ++i) {
+    m_swapchainAcquireSems.push_back(m_device.createSemaphore({}));
+    m_presentBinarySems.push_back(m_device.createSemaphore({}));
+  }
+  m_swapchainAcquireIndex = 0;
+  m_presentBinarySemIndex = 0;
 }
 
 void GRF::Impl::destroySwapchain() {
+  for (auto sem : m_swapchainAcquireSems)
+    m_device.destroySemaphore(sem);
+  m_swapchainAcquireSems.clear();
+  for (auto sem : m_presentBinarySems)
+    m_device.destroySemaphore(sem);
+  m_presentBinarySems.clear();
+
   for (const auto& img : m_swapchainImages) {
     if (img->m_heapIndexStorage != 0xFFFFFFFF)
       m_descriptorHeap->removeImg2DStorageOnly(img->m_heapIndexStorage);
@@ -426,6 +442,13 @@ void GRF::Impl::recreateSwapchain() {
   if (width == 0 || height == 0) return;
 
   m_device.waitIdle();
+
+  for (auto sem : m_swapchainAcquireSems)
+    m_device.destroySemaphore(sem);
+  m_swapchainAcquireSems.clear();
+  for (auto sem : m_presentBinarySems)
+    m_device.destroySemaphore(sem);
+  m_presentBinarySems.clear();
 
   for (const auto& img : m_swapchainImages) {
     if (img->m_heapIndexStorage != 0xFFFFFFFF)

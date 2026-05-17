@@ -54,6 +54,10 @@ public:
   vk::Extent2D                      m_swapchainExtent;
   vk::Format                        m_swapchainFormat = vk::Format::eUndefined;
   SwapchainImages                   m_swapchainImages;
+  std::vector<vk::Semaphore>        m_swapchainAcquireSems;
+  uint32_t                          m_swapchainAcquireIndex = 0;
+  std::vector<vk::Semaphore>        m_presentBinarySems;
+  uint32_t                          m_presentBinarySemIndex = 0;
   uint32_t                          m_pushConstantSize = 0;
 
   vk::PipelineLayout                m_pipelineLayout = nullptr;

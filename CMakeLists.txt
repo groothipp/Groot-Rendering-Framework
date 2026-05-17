@@ -65,7 +65,6 @@ set(GRF_INTERNAL_HEADERS
   ${GRF_INTERNAL_INCL_DIR}/pipelines.hpp
   ${GRF_INTERNAL_INCL_DIR}/profiler.hpp
   ${GRF_INTERNAL_INCL_DIR}/swapchain_image.hpp
-  ${GRF_INTERNAL_INCL_DIR}/sync.hpp
 )
 
 set(GRF_SOURCES
@@ -89,7 +88,6 @@ set(GRF_SOURCES
   ${GRF_SOURCE_DIR}/resources.cpp
   ${GRF_SOURCE_DIR}/stb.cpp
   ${GRF_SOURCE_DIR}/swapchain_image.cpp
-  ${GRF_SOURCE_DIR}/sync.cpp
   ${GRF_SOURCE_DIR}/vma.cpp
 )
 

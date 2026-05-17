@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <span>
 #include <string>
 #include <functional>
 
@@ -34,13 +35,15 @@ public:
   void waitForResourceUpdates();
   void resizeCallback(std::function<void(uint32_t, uint32_t)> callback);
 
+  void wait(const Sync&);
+  void wait(std::span<const Sync>);
+  Ring<Sync> createSyncRing();
+
   Input&    input();
   GUI&      gui();
   Profiler& profiler();
-  SwapchainImage nextSwapchainImage(const Semaphore& signalOnAcquire);
-  void present(const SwapchainImage&, std::span<const Semaphore> waits = {});
-  void waitFences(const std::vector<Fence>&);
-  void resetFences(const std::vector<Fence>&);
+  SwapchainImage nextSwapchainImage();
+  void present(const SwapchainImage&, std::span<const Sync> waits = {});
   void endFrame();
 
   Shader compileShader(ShaderType, const std::string&);
@@ -59,17 +62,10 @@ public:
   ComputePipeline createComputePipeline(Shader);
   GraphicsPipeline createGraphicsPipeline(Shader vertex, Shader fragment, const GraphicsPipelineSettings&);
 
-  Fence createFence(bool signaled = false);
-  Semaphore createSemaphore();
-  Ring<Fence> createFenceRing(bool signaled = false);
-  Ring<Semaphore> createSemaphoreRing();
-
   Ring<CommandBuffer> createCmdRing(QueueType);
-  void submit(
+  Sync submit(
     const CommandBuffer&,
-    std::span<const Semaphore> waits = {},
-    std::span<const Semaphore> signals = {},
-    std::optional<Fence> signalFence = std::nullopt
+    std::span<const Sync> waits = {}
   );
 };
 

@@ -6,7 +6,6 @@
 #include "internal/descriptor_heap.hpp"
 #include "internal/grf.hpp"
 #include "internal/log.hpp"
-#include "internal/sync.hpp"
 #include "internal/pipelines.hpp"
 
 #include "external/stb/stb_image.h"
@@ -15,6 +14,26 @@
 #include <cstring>
 
 namespace grf {
+
+namespace {
+
+static_assert(sizeof(VkSemaphore) == sizeof(uint64_t),
+              "Sync handle encoding assumes 64-bit non-dispatchable Vulkan handles");
+
+vk::Semaphore syncSemaphore(uint64_t h) {
+  VkSemaphore raw;
+  std::memcpy(&raw, &h, sizeof(VkSemaphore));
+  return vk::Semaphore(raw);
+}
+
+uint64_t handleFromSemaphore(vk::Semaphore s) {
+  VkSemaphore raw = s;
+  uint64_t h = 0;
+  std::memcpy(&h, &raw, sizeof(VkSemaphore));
+  return h;
+}
+
+}
 
 GRF::GRF(const Settings& settings) {
   m_impl = std::make_unique<Impl>(settings);
@@ -59,7 +78,7 @@ Profiler& GRF::profiler() {
   return *m_impl->m_profiler;
 }
 
-SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
+SwapchainImage GRF::nextSwapchainImage() {
   int fbw = 0, fbh = 0;
   glfwGetFramebufferSize(m_impl->m_window, &fbw, &fbh);
   if (fbw > 0 && fbh > 0 &&
@@ -68,12 +87,18 @@ SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
     m_impl->recreateSwapchain();
 
   for (int attempt = 0; attempt < 2; ++attempt) {
+    vk::Semaphore acquireSem = m_impl->m_swapchainAcquireSems[m_impl->m_swapchainAcquireIndex];
     auto [res, index] = m_impl->m_device.acquireNextImageKHR(
       m_impl->m_swapchain, m_impl->g_timeout,
-      signalOnAcquire.m_impl->m_semaphore, nullptr
+      acquireSem, nullptr
     );
-    if (res == vk::Result::eSuccess || res == vk::Result::eSuboptimalKHR)
-      return SwapchainImage(m_impl->m_swapchainImages[index]);
+    if (res == vk::Result::eSuccess || res == vk::Result::eSuboptimalKHR) {
+      auto img = m_impl->m_swapchainImages[index];
+      img->m_acquireSem = acquireSem;
+      m_impl->m_swapchainAcquireIndex =
+        (m_impl->m_swapchainAcquireIndex + 1) % m_impl->m_swapchainAcquireSems.size();
+      return SwapchainImage(img);
+    }
     if (res == vk::Result::eErrorOutOfDateKHR) {
       m_impl->recreateSwapchain();
       continue;
@@ -83,17 +108,46 @@ SwapchainImage GRF::nextSwapchainImage(const Semaphore& signalOnAcquire) {
   GRF_PANIC("Failed to acquire swapchain image after swapchain recreation");
 }
 
-void GRF::present(const SwapchainImage& image, std::span<const Semaphore> waits) {
-  std::vector<vk::Semaphore> waitSemaphores;
-  waitSemaphores.reserve(waits.size());
-  for (const auto& s : waits)
-    waitSemaphores.push_back(s.m_impl->m_semaphore);
+void GRF::present(const SwapchainImage& image, std::span<const Sync> waits) {
+  // vkQueuePresentKHR only accepts binary semaphores. Convert any timeline Syncs
+  // by submitting a tiny zero-cmd batch that waits on them and signals a binary sem.
+  vk::Semaphore presentSem = m_impl->m_presentBinarySems[m_impl->m_presentBinarySemIndex];
+  m_impl->m_presentBinarySemIndex =
+    (m_impl->m_presentBinarySemIndex + 1) % m_impl->m_presentBinarySems.size();
+
+  std::vector<vk::Semaphore>          waitSemaphores;
+  std::vector<vk::PipelineStageFlags> waitStages;
+  std::vector<uint64_t>               waitValues;
+  for (const auto& s : waits) {
+    if (!s.valid()) continue;
+    waitSemaphores.push_back(syncSemaphore(s.m_handle));
+    waitStages.push_back(vk::PipelineStageFlagBits::eAllCommands);
+    waitValues.push_back(s.m_kind == 1 ? s.m_value : 0);
+  }
+
+  uint64_t signalDummy = 0;
+  vk::TimelineSemaphoreSubmitInfo timelineInfo{
+    .waitSemaphoreValueCount    = static_cast<uint32_t>(waitValues.size()),
+    .pWaitSemaphoreValues       = waitValues.data(),
+    .signalSemaphoreValueCount  = 1,
+    .pSignalSemaphoreValues     = &signalDummy
+  };
+
+  m_impl->m_graphicsQueue.queue.submit(vk::SubmitInfo{
+    .pNext                = &timelineInfo,
+    .waitSemaphoreCount   = static_cast<uint32_t>(waitSemaphores.size()),
+    .pWaitSemaphores      = waitSemaphores.data(),
+    .pWaitDstStageMask    = waitStages.data(),
+    .commandBufferCount   = 0,
+    .pCommandBuffers      = nullptr,
+    .signalSemaphoreCount = 1,
+    .pSignalSemaphores    = &presentSem
+  });
 
   uint32_t index = image.m_impl->m_index;
-
   auto res = m_impl->m_graphicsQueue.queue.presentKHR(vk::PresentInfoKHR{
-    .waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size()),
-    .pWaitSemaphores    = waitSemaphores.data(),
+    .waitSemaphoreCount = 1,
+    .pWaitSemaphores    = &presentSem,
     .swapchainCount     = 1,
     .pSwapchains        = &m_impl->m_swapchain,
     .pImageIndices      = &index
@@ -333,6 +387,7 @@ Img2D GRF::createImg2D(Format format, uint32_t width, uint32_t height, uint32_t 
       }
     }));
   }
+  img->m_storageView = img->m_storageViews[0];
 
   m_impl->m_descriptorHeap->addImg2D(img);
 
@@ -395,6 +450,7 @@ Img3D GRF::createImg3D(Format format, uint32_t width, uint32_t height, uint32_t 
       }
     }));
   }
+  img->m_storageView = img->m_storageViews[0];
 
   m_impl->m_descriptorHeap->addImg3D(img);
 
@@ -627,48 +683,6 @@ ComputePipeline GRF::createComputePipeline(Shader shader) {
   return ComputePipeline(pipeline);
 }
 
-Fence GRF::createFence(bool signaled) {
-  auto impl = std::make_shared<Fence::Impl>(
-    std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
-    m_impl->m_device.createFence(vk::FenceCreateInfo{
-      .flags = signaled ? vk::FenceCreateFlagBits::eSignaled : vk::FenceCreateFlags()
-    })
-  );
-
-  return Fence(impl);
-}
-
-Semaphore GRF::createSemaphore() {
-  auto impl = std::make_shared<Semaphore::Impl>(
-    std::weak_ptr<ResourceManager>(m_impl->m_resourceManager),
-    m_impl->m_device.createSemaphore({})
-  );
-
-  return Semaphore(impl);
-}
-
-Ring<Fence> GRF::createFenceRing(bool signaled) {
-  auto ring = Ring<Fence>(m_impl->m_settings.flightFrames);
-
-  for (int32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
-    ring.m_objs.emplace_back(createFence(signaled));
-
-  return ring;
-}
-
-Ring<Semaphore> GRF::createSemaphoreRing() {
-  uint32_t count = std::max(
-    m_impl->m_settings.flightFrames,
-    static_cast<uint32_t>(m_impl->m_swapchainImages.size())
-  );
-  auto ring = Ring<Semaphore>(count);
-
-  for (uint32_t i = 0; i < count; ++i)
-    ring.m_objs.emplace_back(createSemaphore());
-
-  return ring;
-}
-
 Ring<CommandBuffer> GRF::createCmdRing(QueueType qt) {
   auto ring = Ring<CommandBuffer>(m_impl->m_settings.flightFrames);
 
@@ -702,37 +716,41 @@ Ring<CommandBuffer> GRF::createCmdRing(QueueType qt) {
   return ring;
 }
 
-void GRF::submit(
+Sync GRF::submit(
   const CommandBuffer& cmd,
-  std::span<const Semaphore> waits,
-  std::span<const Semaphore> signals,
-  std::optional<Fence> signalFence
+  std::span<const Sync> waits
 ) {
   Queue& q = m_impl->m_resourceManager->queue(cmd.m_impl->m_queueType);
 
   std::vector<vk::Semaphore>          waitSemaphores;
   std::vector<vk::PipelineStageFlags> waitStages;
   std::vector<uint64_t>               waitValues;
+  waitSemaphores.reserve(waits.size() + 1);
+  waitStages.reserve(waits.size() + 1);
+  waitValues.reserve(waits.size() + 1);
   for (const auto& s : waits) {
-    waitSemaphores.push_back(s.m_impl->m_semaphore);
+    if (!s.valid()) continue;
+    waitSemaphores.push_back(syncSemaphore(s.m_handle));
     waitStages.push_back(vk::PipelineStageFlagBits::eAllCommands);
-    waitValues.push_back(0);
+    waitValues.push_back(s.m_kind == 1 ? s.m_value : 0);
   }
 
-  std::vector<vk::Semaphore>  signalSemaphores;
-  std::vector<uint64_t>       signalValues;
-  signalSemaphores.push_back(q.timeline);
-  signalValues.push_back(cmd.m_impl->m_reservedValue);
-  for (const auto& s : signals) {
-    signalSemaphores.push_back(s.m_impl->m_semaphore);
-    signalValues.push_back(0);
+  Sync uploadSync = m_impl->m_resourceManager->pendingUploadSync();
+  if (uploadSync.valid()) {
+    m_impl->m_resourceManager->waitForUploadsSubmitted();
+    waitSemaphores.push_back(syncSemaphore(uploadSync.m_handle));
+    waitStages.push_back(vk::PipelineStageFlagBits::eAllCommands);
+    waitValues.push_back(uploadSync.m_value);
   }
+
+  uint64_t signalValue = cmd.m_impl->m_reservedValue;
+  vk::Semaphore signalSemaphore = q.timeline;
 
   vk::TimelineSemaphoreSubmitInfo timelineInfo{
     .waitSemaphoreValueCount    = static_cast<uint32_t>(waitValues.size()),
     .pWaitSemaphoreValues       = waitValues.data(),
-    .signalSemaphoreValueCount  = static_cast<uint32_t>(signalValues.size()),
-    .pSignalSemaphoreValues     = signalValues.data()
+    .signalSemaphoreValueCount  = 1,
+    .pSignalSemaphoreValues     = &signalValue
   };
 
   q.queue.submit(vk::SubmitInfo{
@@ -742,35 +760,64 @@ void GRF::submit(
     .pWaitDstStageMask      = waitStages.data(),
     .commandBufferCount     = 1,
     .pCommandBuffers        = &cmd.m_impl->m_buffer,
-    .signalSemaphoreCount   = static_cast<uint32_t>(signalSemaphores.size()),
-    .pSignalSemaphores      = signalSemaphores.data()
-  }, signalFence.has_value() ? signalFence->m_impl->m_fence : nullptr);
+    .signalSemaphoreCount   = 1,
+    .pSignalSemaphores      = &signalSemaphore
+  });
 
   cmd.m_impl->m_reservedValue = 0;
+
+  Sync result;
+  result.m_handle = handleFromSemaphore(q.timeline);
+  result.m_value  = signalValue;
+  result.m_kind   = 1;
+  return result;
 }
 
-void GRF::waitFences(const std::vector<Fence>& fences) {
-  if (fences.empty()) {
-    log::warning("Attempted to wait on 0 fences");
-    return;
+void GRF::wait(const Sync& sync) {
+  if (!sync.valid()) return;
+  if (sync.m_kind == 2)
+    GRF_PANIC("Cannot CPU-wait on a binary-semaphore Sync");
+
+  vk::Semaphore sem = syncSemaphore(sync.m_handle);
+  uint64_t value = sync.m_value;
+  vk::SemaphoreWaitInfo info{
+    .semaphoreCount = 1,
+    .pSemaphores    = &sem,
+    .pValues        = &value
+  };
+  if (m_impl->m_device.waitSemaphores(info, m_impl->g_timeout) != vk::Result::eSuccess)
+    GRF_PANIC("Hung waiting for sync");
+}
+
+void GRF::wait(std::span<const Sync> syncs) {
+  std::vector<vk::Semaphore> sems;
+  std::vector<uint64_t>      values;
+  sems.reserve(syncs.size());
+  values.reserve(syncs.size());
+
+  for (const auto& s : syncs) {
+    if (!s.valid()) continue;
+    if (s.m_kind == 2)
+      GRF_PANIC("Cannot CPU-wait on a binary-semaphore Sync");
+    sems.push_back(syncSemaphore(s.m_handle));
+    values.push_back(s.m_value);
   }
+  if (sems.empty()) return;
 
-  std::vector<vk::Fence> f;
-  for (const auto& fence : fences)
-    f.emplace_back(fence.m_impl->m_fence);
-
-  if (m_impl->m_device.waitForFences(f, true, m_impl->g_timeout) != vk::Result::eSuccess)
-    GRF_PANIC("Hung waiting for fences");
+  vk::SemaphoreWaitInfo info{
+    .semaphoreCount = static_cast<uint32_t>(sems.size()),
+    .pSemaphores    = sems.data(),
+    .pValues        = values.data()
+  };
+  if (m_impl->m_device.waitSemaphores(info, m_impl->g_timeout) != vk::Result::eSuccess)
+    GRF_PANIC("Hung waiting for syncs");
 }
 
-void GRF::resetFences(const std::vector<Fence>& fences) {
-  if (fences.empty()) return;
-
-  std::vector<vk::Fence> f;
-  for (const auto& fence : fences)
-    f.emplace_back(fence.m_impl->m_fence);
-
-  m_impl->m_device.resetFences(f);
+Ring<Sync> GRF::createSyncRing() {
+  auto ring = Ring<Sync>(m_impl->m_settings.flightFrames);
+  for (uint32_t i = 0; i < m_impl->m_settings.flightFrames; ++i)
+    ring.m_objs.emplace_back();
+  return ring;
 }
 
 GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
@@ -791,14 +838,19 @@ GRF::Impl::Impl(const Settings& settings) : m_settings(settings) {
   vk::PhysicalDeviceProperties properties = m_gpu.getProperties();
 
   m_allocator = std::make_unique<Allocator>(
-    m_instance, m_gpu, m_device, properties.apiVersion, m_resourceManager
+    m_instance, m_gpu, m_device, properties.apiVersion, m_resourceManager,
+    m_settings.uploadBytesPerFrame,
+    std::array<uint32_t, 3>{
+      m_graphicsQueue.index, m_computeQueue.index, m_transferQueue.index
+    }
   );
   m_descriptorHeap = std::make_unique<DescriptorHeap>(m_gpu, m_device);
   m_shaderManager = std::make_unique<ShaderManager>(m_device);
   createTimelineSemaphores();
 
   m_resourceManager = std::make_shared<ResourceManager>(
-    m_allocator, m_descriptorHeap, m_graphicsQueue, m_computeQueue, m_transferQueue, m_device
+    m_allocator, m_descriptorHeap, m_graphicsQueue, m_computeQueue, m_transferQueue, m_device,
+    m_settings.uploadBytesPerFrame
   );
 
   createSwapchain();
@@ -851,9 +903,7 @@ GRF::Impl::~Impl() {
   m_descriptorHeap->destroy();
   m_allocator->destroy();
 
-  for (const auto& img: m_swapchainImages)
-    m_device.destroyImageView(img->m_view);
-  m_device.destroySwapchainKHR(m_swapchain);
+  destroySwapchain();
 
   m_device.destroy();
 
@@ -867,23 +917,29 @@ GRF::Impl::~Impl() {
 std::future<ImageData> readImage(const std::string& path) {
   return std::async(std::launch::async, [path]() -> ImageData {
     int width = 0, height = 0, channels = 0;
+    int fileChannels = 0;
+    stbi_info(path.c_str(), &width, &height, &fileChannels);
+
+    const bool grayscale      = (fileChannels == 1);
+    const int  desired        = grayscale ? STBI_grey : STBI_rgb_alpha;
+    const int  componentCount = grayscale ? 1 : 4;
 
     void*       pixels        = nullptr;
     std::size_t bytesPerPixel = 0;
     Format      format        = Format::undefined;
 
     if (stbi_is_hdr(path.c_str())) {
-      pixels        = stbi_loadf(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-      bytesPerPixel = 4 * sizeof(float);
-      format        = Format::rgba32_sfloat;
+      pixels        = stbi_loadf(path.c_str(), &width, &height, &channels, desired);
+      bytesPerPixel = componentCount * sizeof(float);
+      format        = grayscale ? Format::r32_sfloat : Format::rgba32_sfloat;
     } else if (stbi_is_16_bit(path.c_str())) {
-      pixels        = stbi_load_16(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-      bytesPerPixel = 4 * sizeof(uint16_t);
-      format        = Format::rgba16_unorm;
+      pixels        = stbi_load_16(path.c_str(), &width, &height, &channels, desired);
+      bytesPerPixel = componentCount * sizeof(uint16_t);
+      format        = grayscale ? Format::r16_unorm : Format::rgba16_unorm;
     } else {
-      pixels        = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-      bytesPerPixel = 4 * sizeof(uint8_t);
-      format        = Format::rgba8_unorm;
+      pixels        = stbi_load(path.c_str(), &width, &height, &channels, desired);
+      bytesPerPixel = componentCount * sizeof(uint8_t);
+      format        = grayscale ? Format::r8_unorm : Format::rgba8_unorm;
     }
 
     if (pixels == nullptr)

@@ -15,8 +15,6 @@ enum class ResourceKind {
   Image,
   Sampler,
   Pipeline,
-  Fence,
-  Semaphore,
   CommandBuffer
 };
 
@@ -30,8 +28,6 @@ struct Grave {
   vk::ImageView           storageView = nullptr;
   vk::Sampler             sampler = nullptr;
   vk::Pipeline            pipeline = nullptr;
-  vk::Fence               fence = nullptr;
-  vk::Semaphore           semaphore = nullptr;
   vk::CommandBuffer       commandBuffer = nullptr;
   vk::CommandPool         commandPool = nullptr;
   VmaAllocation           allocation = nullptr;

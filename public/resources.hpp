@@ -1,5 +1,6 @@
 #pragma once
 
+#include "./sync.hpp"
 #include "./types.hpp"
 
 #include <cstdint>
@@ -218,6 +219,7 @@ class SwapchainImage {
 public:
   SwapchainImage() = default;
   uint32_t heapIndex() const;
+  Sync sync() const;
 
 private:
   explicit SwapchainImage(std::shared_ptr<Impl>);

@@ -4,6 +4,8 @@
 #include "internal/allocator.hpp"
 #include "internal/log.hpp"
 
+#include <algorithm>
+#include <cstring>
 #include <mutex>
 
 namespace grf {
@@ -13,8 +15,19 @@ Allocator::Allocator(
   const vk::PhysicalDevice& gpu,
   vk::Device& device,
   uint32_t apiVersion,
-  std::shared_ptr<ResourceManager>& resourceManager
+  std::shared_ptr<ResourceManager>& resourceManager,
+  vk::DeviceSize stagingRingSize,
+  std::array<uint32_t, 3> queueFamilies
 ) : m_device(device), m_resourceManager(resourceManager) {
+  std::vector<uint32_t> distinct;
+  for (uint32_t f : queueFamilies)
+    if (std::find(distinct.begin(), distinct.end(), f) == distinct.end())
+      distinct.push_back(f);
+  if (distinct.size() > 1) {
+    m_imageSharingFamilies = std::move(distinct);
+    m_imageSharingMode = vk::SharingMode::eConcurrent;
+  }
+
   VmaAllocatorCreateInfo createInfo{
     .flags            = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
     .physicalDevice   = gpu,
@@ -31,6 +44,32 @@ Allocator::Allocator(
 
   m_anisotropySupport = feats.samplerAnisotropy;
   m_maxAnisotropy = props.limits.maxSamplerAnisotropy;
+
+  vk::BufferCreateInfo ringCreateInfo{
+    .size  = stagingRingSize,
+    .usage = vk::BufferUsageFlagBits::eTransferSrc
+  };
+  VmaAllocationCreateInfo ringAllocInfo{
+    .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+    .usage = VMA_MEMORY_USAGE_AUTO
+  };
+  VkBuffer cRing;
+  VmaAllocationInfo ringInfo{};
+  auto ringRes = vk::Result(vmaCreateBuffer(
+    m_allocator,
+    reinterpret_cast<VkBufferCreateInfo *>(&ringCreateInfo),
+    &ringAllocInfo,
+    &cRing,
+    &m_stagingRingAlloc,
+    &ringInfo
+  ));
+  if (ringRes != vk::Result::eSuccess)
+    GRF_PANIC("Failed to allocate staging ring: {}", vk::to_string(ringRes));
+
+  m_stagingRing       = vk::Buffer(cRing);
+  m_stagingRingMapped = static_cast<std::byte *>(ringInfo.pMappedData);
+  m_stagingRingSize   = stagingRingSize;
+  m_stagingRingHead   = 0;
 }
 
 Allocator::~Allocator() {
@@ -39,6 +78,13 @@ Allocator::~Allocator() {
 }
 
 void Allocator::destroy() {
+  if (m_stagingRing != nullptr) {
+    vmaDestroyBuffer(m_allocator, m_stagingRing, m_stagingRingAlloc);
+    m_stagingRing       = nullptr;
+    m_stagingRingAlloc  = nullptr;
+    m_stagingRingMapped = nullptr;
+  }
+
   for (auto& [address, weakBuf] : m_buffers) {
     if (auto buffer = weakBuf.lock())
       vmaDestroyBuffer(m_allocator, buffer->m_buffer, buffer->m_allocation);
@@ -76,13 +122,13 @@ void Allocator::destroy() {
 }
 
 void Allocator::destroyBuffer(const Grave& grave) {
-  std::lock_guard<std::mutex> g(m_mutex);
+  std::lock_guard<std::recursive_mutex> g(m_mutex);
   vmaDestroyBuffer(m_allocator, grave.buffer, grave.allocation);
   m_buffers.erase(grave.address);
 }
 
 void Allocator::destroyImage(const Grave& grave) {
-  std::lock_guard<std::mutex> g(m_mutex);
+  std::lock_guard<std::recursive_mutex> g(m_mutex);
   m_device.destroyImageView(grave.view);
   if (grave.storageView != nullptr)
     m_device.destroyImageView(grave.storageView);
@@ -93,7 +139,7 @@ void Allocator::destroyImage(const Grave& grave) {
 }
 
 void Allocator::destroySampler(const Grave& grave) {
-  std::lock_guard<std::mutex> g(m_mutex);
+  std::lock_guard<std::recursive_mutex> g(m_mutex);
   m_device.destroySampler(grave.sampler);
   m_samplers.erase(grave.samplerId);
 }
@@ -142,7 +188,7 @@ Buffer Allocator::allocateBuffer(vk::DeviceSize size, BufferIntent intent) {
   );
 
   {
-    std::lock_guard<std::mutex> g(m_mutex);
+    std::lock_guard<std::recursive_mutex> g(m_mutex);
     m_buffers[address] = impl;
   }
   return Buffer(impl);
@@ -161,8 +207,13 @@ std::shared_ptr<Image> Allocator::allocateImage(const ImageAllocInfo& info) {
     .arrayLayers  = 1,
     .samples      = vk::SampleCountFlagBits::e1,
     .tiling       = vk::ImageTiling::eOptimal,
-    .usage        = info.usage
+    .usage        = info.usage,
+    .sharingMode  = m_imageSharingMode
   };
+  if (m_imageSharingMode == vk::SharingMode::eConcurrent) {
+    imageCreateInfo.queueFamilyIndexCount = static_cast<uint32_t>(m_imageSharingFamilies.size());
+    imageCreateInfo.pQueueFamilyIndices   = m_imageSharingFamilies.data();
+  }
   if (info.isCubemap) {
     imageCreateInfo.flags |= vk::ImageCreateFlagBits::eCubeCompatible;
     imageCreateInfo.arrayLayers = 6;
@@ -235,10 +286,10 @@ std::shared_ptr<Sampler::Impl> Allocator::createSampler(const SamplerSettings& s
   return impl;
 }
 
-std::optional<vk::Buffer> Allocator::writeBuffer(
+std::optional<StagingHandle> Allocator::writeBuffer(
   vk::DeviceAddress address, std::span<const std::byte> data, std::size_t offset
 ) {
-  std::lock_guard<std::mutex> g(m_mutex);
+  std::lock_guard<std::recursive_mutex> g(m_mutex);
 
   auto it = m_buffers.find(address);
   if (it == m_buffers.end())
@@ -266,7 +317,7 @@ std::optional<vk::Buffer> Allocator::writeBuffer(
 }
 
 void Allocator::readBuffer(vk::DeviceAddress address, std::span<std::byte> data, std::size_t offset) {
-  std::lock_guard<std::mutex> g(m_mutex);
+  std::lock_guard<std::recursive_mutex> g(m_mutex);
 
   auto it = m_buffers.find(address);
   if (it == m_buffers.end())
@@ -279,11 +330,22 @@ void Allocator::readBuffer(vk::DeviceAddress address, std::span<std::byte> data,
   vmaCopyAllocationToMemory(m_allocator, impl->m_allocation, offset, data.data(), data.size());
 }
 
-vk::Buffer Allocator::stage(std::span<const std::byte> data) {
-  std::lock_guard<std::mutex> g(m_mutex);
+StagingHandle Allocator::stage(std::span<const std::byte> data) {
+  std::lock_guard<std::recursive_mutex> g(m_mutex);
+
+  constexpr vk::DeviceSize alignment = 256;
+  const vk::DeviceSize size = data.size();
+
+  vk::DeviceSize alignedHead = (m_stagingRingHead + alignment - 1) & ~(alignment - 1);
+  if (size <= m_stagingRingSize && alignedHead + size <= m_stagingRingSize) {
+    std::memcpy(m_stagingRingMapped + alignedHead, data.data(), size);
+    vmaFlushAllocation(m_allocator, m_stagingRingAlloc, alignedHead, size);
+    m_stagingRingHead = alignedHead + size;
+    return StagingHandle{ m_stagingRing, alignedHead };
+  }
 
   vk::BufferCreateInfo bufferCreateInfo{
-    .size   = data.size(),
+    .size   = size,
     .usage  = vk::BufferUsageFlagBits::eTransferSrc,
   };
 
@@ -307,15 +369,9 @@ vk::Buffer Allocator::stage(std::span<const std::byte> data) {
     GRF_PANIC("Failed to allocate staging buffer: {}", vk::to_string(res));
 
   m_staging[m_nextStagingBuffer] = std::make_pair(allocation, vk::Buffer(cBuffer));
-  vmaCopyMemoryToAllocation(
-    m_allocator,
-    data.data(),
-    allocation,
-    0,
-    data.size()
-  );
+  vmaCopyMemoryToAllocation(m_allocator, data.data(), allocation, 0, size);
 
-  return m_staging.at(m_nextStagingBuffer++).second;
+  return StagingHandle{ m_staging.at(m_nextStagingBuffer++).second, 0 };
 }
 
 void Allocator::destroyStagingBuffers() {
@@ -325,6 +381,7 @@ void Allocator::destroyStagingBuffers() {
   }
   m_staging.clear();
   m_nextStagingBuffer = 0;
+  m_stagingRingHead = 0;
 }
 
 std::pair<VmaMemoryUsage, VmaAllocationCreateFlags> Allocator::getVMAflags(BufferIntent intent) const {

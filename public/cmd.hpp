@@ -81,8 +81,6 @@ public:
   void dispatchIndirect(const Buffer&, std::size_t offset = 0);
 
   void transition(const TransitionImage& img, Layout from, Layout to);
-  void release(const TransitionImage& img, Layout from, Layout to, QueueType dstQueue);
-  void acquire(const TransitionImage& img, Layout from, Layout to, QueueType srcQueue);
   void barrier();
   void barrier(const Buffer& buf, BufferAccess from, BufferAccess to);
 
