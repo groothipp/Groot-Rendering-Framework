@@ -75,44 +75,21 @@ TEST_CASE("frame: beginFrame reports non-zero delta after work", "[frame]") {
 
 TEST_CASE("frame: nextSwapchainImage returns without crashing", "[frame]") {
   grf::GRF grf;
-  grf::Semaphore acquired = grf.createSemaphore();
   grf.beginFrame();
-  grf::SwapchainImage image = grf.nextSwapchainImage(acquired);
-  SUCCEED();
+  grf::SwapchainImage image = grf.nextSwapchainImage();
+  CHECK(image.sync().valid());
 }
 
-TEST_CASE("sync: createFence does not crash", "[sync]") {
-  grf::GRF grf;
-
-  SECTION("unsignaled") {
-    grf::Fence fence = grf.createFence(false);
-    SUCCEED();
-  }
-
-  SECTION("signaled") {
-    grf::Fence fence = grf.createFence(true);
-    SUCCEED();
-  }
-
-  SECTION("default argument") {
-    grf::Fence fence = grf.createFence();
-    SUCCEED();
-  }
+TEST_CASE("sync: default-constructed Sync is invalid", "[sync]") {
+  grf::Sync s;
+  CHECK(!s.valid());
 }
 
-TEST_CASE("sync: waitFences returns immediately for signaled fence", "[sync]") {
+TEST_CASE("sync: wait on invalid sync is a no-op", "[sync]") {
   grf::GRF grf;
-  grf::Fence fence = grf.createFence(true);
-
+  grf::Sync s;
   auto start = std::chrono::steady_clock::now();
-  grf.waitFences({ fence });
+  grf.wait(s);
   auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-
   CHECK(elapsed < 0.1);
-}
-
-TEST_CASE("sync: createSemaphore does not crash", "[sync]") {
-  grf::GRF grf;
-  grf::Semaphore sem = grf.createSemaphore();
-  SUCCEED();
 }

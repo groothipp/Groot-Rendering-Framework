@@ -232,36 +232,6 @@ TEST_CASE("destruction: free list is LIFO", "[destruction][heap]") {
   CHECK(second.heapIndex() == slotB);
 }
 
-TEST_CASE("destruction: fence dies after endFrame drain", "[destruction][sync]") {
-  grf::GRF grf(grf::Settings{ .flightFrames = 2 });
-
-  {
-    grf::Fence f = grf.createFence(true);
-  }
-
-  for (int i = 0; i < 4; ++i) {
-    grf.beginFrame();
-    grf.endFrame();
-  }
-
-  SUCCEED();
-}
-
-TEST_CASE("destruction: semaphore dies after endFrame drain", "[destruction][sync]") {
-  grf::GRF grf(grf::Settings{ .flightFrames = 2 });
-
-  {
-    grf::Semaphore s = grf.createSemaphore();
-  }
-
-  for (int i = 0; i < 4; ++i) {
-    grf.beginFrame();
-    grf.endFrame();
-  }
-
-  SUCCEED();
-}
-
 TEST_CASE("destruction: ring of buffers releases all slots after drain", "[destruction][ring]") {
   grf::GRF grf(grf::Settings{ .flightFrames = 2 });
 
@@ -304,20 +274,6 @@ TEST_CASE("destruction: ring of img2D reclaims heap slots after drain", "[destru
   CHECK(originalSlots == reusedSlots);
 }
 
-TEST_CASE("destruction: ring of fences releases handles after drain", "[destruction][ring][sync]") {
-  grf::GRF grf(grf::Settings{ .flightFrames = 2 });
-
-  {
-    grf::Ring<grf::Fence> ring = grf.createFenceRing();
-  }
-
-  for (int i = 0; i < 4; ++i) {
-    grf.beginFrame();
-    grf.endFrame();
-  }
-
-  SUCCEED();
-}
 
 TEST_CASE("destruction: slots not reclaimed before drain", "[destruction][heap]") {
   grf::GRF grf(grf::Settings{ .flightFrames = 2 });

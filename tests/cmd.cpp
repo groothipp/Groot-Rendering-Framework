@@ -21,16 +21,16 @@ TEST_CASE("cmd: begin/end on empty cmd buffer succeeds", "[cmd]") {
   SUCCEED();
 }
 
-TEST_CASE("cmd: submit empty buffer signals fence", "[cmd][submit]") {
+TEST_CASE("cmd: submit empty buffer returns valid sync", "[cmd][submit]") {
   grf::GRF grf;
   grf::Ring<grf::CommandBuffer> ring = grf.createCmdRing(grf::QueueType::Graphics);
-  grf::Fence fence = grf.createFence(false);
 
   ring[0].begin();
   ring[0].end();
-  grf.submit(ring[0], {}, {}, fence);
+  grf::Sync done = grf.submit(ring[0]);
+  CHECK(done.valid());
 
-  grf.waitFences({ fence });
+  grf.wait(done);
   SUCCEED();
 }
 
@@ -42,15 +42,14 @@ TEST_CASE("cmd: dispatch a compute pipeline", "[cmd][compute]") {
   grf::ComputePipeline pipe = grf.createComputePipeline(shader);
 
   grf::Ring<grf::CommandBuffer> ring = grf.createCmdRing(grf::QueueType::Compute);
-  grf::Fence fence = grf.createFence(false);
 
   ring[0].begin();
   ring[0].bindPipeline(pipe);
   ring[0].dispatch(1, 1, 1);
   ring[0].end();
-  grf.submit(ring[0], {}, {}, fence);
+  grf::Sync done = grf.submit(ring[0]);
 
-  grf.waitFences({ fence });
+  grf.wait(done);
   SUCCEED();
 }
 
@@ -67,11 +66,9 @@ TEST_CASE("cmd: render into swapchain with clear", "[cmd][graphics]") {
   });
 
   grf::Ring<grf::CommandBuffer> ring = grf.createCmdRing(grf::QueueType::Graphics);
-  grf::Fence fence = grf.createFence(false);
-  grf::Semaphore acquired = grf.createSemaphore();
 
   grf.beginFrame();
-  grf::SwapchainImage swap = grf.nextSwapchainImage(acquired);
+  grf::SwapchainImage swap = grf.nextSwapchainImage();
 
   ring[0].begin();
   ring[0].transition(swap, grf::Layout::Undefined, grf::Layout::ColorAttachmentOptimal);
@@ -87,9 +84,9 @@ TEST_CASE("cmd: render into swapchain with clear", "[cmd][graphics]") {
   ring[0].draw(3);
   ring[0].endRendering();
   ring[0].end();
-  grf.submit(ring[0], std::array{ acquired }, {}, fence);
+  grf::Sync done = grf.submit(ring[0], std::array{ swap.sync() });
 
-  grf.waitFences({ fence });
+  grf.wait(done);
   SUCCEED();
 }
 
@@ -127,16 +124,15 @@ TEST_CASE("cmd: push constants drive a compute copy", "[cmd][push]") {
   };
 
   grf::Ring<grf::CommandBuffer> ring = grf.createCmdRing(grf::QueueType::Compute);
-  grf::Fence fence = grf.createFence(false);
 
   ring[0].begin();
   ring[0].bindPipeline(pipe);
   ring[0].push(Push{ src.address(), dst.address(), kCount });
   ring[0].dispatch(1, 1, 1);
   ring[0].end();
-  grf.submit(ring[0], {}, {}, fence);
+  grf::Sync done = grf.submit(ring[0]);
 
-  grf.waitFences({ fence });
+  grf.wait(done);
 
   std::array<uint32_t, kCount> readBack{};
   dst.read(readBack);
@@ -146,7 +142,7 @@ TEST_CASE("cmd: push constants drive a compute copy", "[cmd][push]") {
   grf.endFrame();
 }
 
-TEST_CASE("cmd: queue ownership transfer between graphics and compute", "[cmd][ownership]") {
+TEST_CASE("cmd: cross-queue sync via Sync", "[cmd][cross-queue]") {
   grf::GRF grf;
 
   grf::Img2D img = grf.createImg2D(grf::Format::rgba8_unorm, 64, 64);
@@ -154,21 +150,16 @@ TEST_CASE("cmd: queue ownership transfer between graphics and compute", "[cmd][o
   grf::Ring<grf::CommandBuffer> graphicsRing = grf.createCmdRing(grf::QueueType::Graphics);
   grf::Ring<grf::CommandBuffer> computeRing  = grf.createCmdRing(grf::QueueType::Compute);
 
-  grf::Semaphore handoff = grf.createSemaphore();
-  grf::Fence done = grf.createFence(false);
-
   graphicsRing[0].begin();
   graphicsRing[0].transition(img, grf::Layout::Undefined, grf::Layout::General);
-  graphicsRing[0].release(img, grf::Layout::General, grf::Layout::General, grf::QueueType::Compute);
   graphicsRing[0].end();
-  grf.submit(graphicsRing[0], {}, std::array{ handoff });
+  grf::Sync graphicsDone = grf.submit(graphicsRing[0]);
 
   computeRing[0].begin();
-  computeRing[0].acquire(img, grf::Layout::General, grf::Layout::General, grf::QueueType::Graphics);
   computeRing[0].end();
-  grf.submit(computeRing[0], std::array{ handoff }, {}, done);
+  grf::Sync computeDone = grf.submit(computeRing[0], std::array{ graphicsDone });
 
-  grf.waitFences({ done });
+  grf.wait(computeDone);
   SUCCEED();
 }
 
@@ -184,18 +175,15 @@ TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
     .colorFormats = { grf::Format::bgra8_srgb }
   });
 
-  grf::Ring<grf::CommandBuffer> cmds      = grf.createCmdRing(grf::QueueType::Graphics);
-  grf::Ring<grf::Semaphore>     acquired  = grf.createSemaphoreRing();
-  grf::Ring<grf::Semaphore>     rendered  = grf.createSemaphoreRing();
-  grf::Ring<grf::Fence>         fences    = grf.createFenceRing(true);
+  grf::Ring<grf::CommandBuffer> cmds       = grf.createCmdRing(grf::QueueType::Graphics);
+  grf::Ring<grf::Sync>          flightRing = grf.createSyncRing();
 
   for (int frame = 0; frame < 2; ++frame) {
     auto [idx, _] = grf.beginFrame();
 
-    grf.waitFences({ fences[idx] });
-    grf.resetFences({ fences[idx] });
+    grf.wait(flightRing[idx]);
 
-    grf::SwapchainImage swap = grf.nextSwapchainImage(acquired[idx]);
+    grf::SwapchainImage swap = grf.nextSwapchainImage();
 
     cmds[idx].begin();
     cmds[idx].transition(swap, grf::Layout::Undefined, grf::Layout::ColorAttachmentOptimal);
@@ -212,8 +200,9 @@ TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
     cmds[idx].transition(swap, grf::Layout::ColorAttachmentOptimal, grf::Layout::PresentSrc);
     cmds[idx].end();
 
-    grf.submit(cmds[idx], std::array{ acquired[idx] }, std::array{ rendered[idx] }, fences[idx]);
-    grf.present(swap, std::array{ rendered[idx] });
+    grf::Sync done = grf.submit(cmds[idx], std::array{ swap.sync() });
+    flightRing[idx] = done;
+    grf.present(swap, std::array{ done });
 
     grf.endFrame();
   }
@@ -224,18 +213,16 @@ TEST_CASE("cmd: full acquire-render-present round trip", "[cmd][present]") {
 TEST_CASE("cmd: timeline value advances after submit", "[cmd][timeline]") {
   grf::GRF grf;
   grf::Ring<grf::CommandBuffer> ring = grf.createCmdRing(grf::QueueType::Graphics);
-  grf::Fence f0 = grf.createFence(false);
-  grf::Fence f1 = grf.createFence(false);
 
   ring[0].begin();
   ring[0].end();
-  grf.submit(ring[0], {}, {}, f0);
-  grf.waitFences({ f0 });
+  grf::Sync s0 = grf.submit(ring[0]);
+  grf.wait(s0);
 
   ring[0].begin();
   ring[0].end();
-  grf.submit(ring[0], {}, {}, f1);
-  grf.waitFences({ f1 });
+  grf::Sync s1 = grf.submit(ring[0]);
+  grf.wait(s1);
 
   SUCCEED();
 }

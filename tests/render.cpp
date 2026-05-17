@@ -28,10 +28,8 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
     .cullMode     = grf::CullMode::None
   });
 
-  grf::Ring<grf::CommandBuffer> cmds     = grf.createCmdRing(grf::QueueType::Graphics);
-  grf::Ring<grf::Semaphore>     acquired = grf.createSemaphoreRing();
-  grf::Ring<grf::Semaphore>     rendered = grf.createSemaphoreRing();
-  grf::Ring<grf::Fence>         fences   = grf.createFenceRing(true);
+  grf::Ring<grf::CommandBuffer> cmds       = grf.createCmdRing(grf::QueueType::Graphics);
+  grf::Ring<grf::Sync>          flightRing = grf.createSyncRing();
 
   const uint64_t frameLimit = 1200;
   uint64_t       framesRun  = 0;
@@ -48,10 +46,9 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
 
     grf.profiler().render();
 
-    grf.waitFences({ fences[idx] });
-    grf.resetFences({ fences[idx] });
+    grf.wait(flightRing[idx]);
 
-    grf::SwapchainImage swap = grf.nextSwapchainImage(acquired[idx]);
+    grf::SwapchainImage swap = grf.nextSwapchainImage();
 
     cmds[idx].begin();
     cmds[idx].beginProfile("frame");
@@ -84,13 +81,9 @@ TEST_CASE("render: full triangle render loop with present", "[render]") {
     cmds[idx].endProfile();
     cmds[idx].end();
 
-    grf.submit(
-      cmds[idx],
-      std::array{ acquired[idx] },
-      std::array{ rendered[idx] },
-      fences[idx]
-    );
-    grf.present(swap, std::array{ rendered[idx] });
+    grf::Sync done = grf.submit(cmds[idx], std::array{ swap.sync() });
+    flightRing[idx] = done;
+    grf.present(swap, std::array{ done });
 
     grf.endFrame();
     ++framesRun;

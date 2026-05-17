@@ -113,29 +113,12 @@ TEST_CASE("ring: createImg3DRing produces flightFrames distinct images", "[ring]
   CHECK(heapIndices.size() == 2);
 }
 
-TEST_CASE("ring: createFenceRing produces flightFrames valid fences", "[ring][sync]") {
+TEST_CASE("ring: createSyncRing produces flightFrames default-constructed Syncs", "[ring][sync]") {
   grf::GRF grf(grf::Settings{ .flightFrames = 3 });
+  grf::Ring<grf::Sync> ring = grf.createSyncRing();
 
-  SECTION("unsignaled") {
-    grf::Ring<grf::Fence> ring = grf.createFenceRing(false);
-    SUCCEED();
-  }
-
-  SECTION("signaled") {
-    grf::Ring<grf::Fence> ring = grf.createFenceRing(true);
-    SUCCEED();
-  }
-
-  SECTION("default argument") {
-    grf::Ring<grf::Fence> ring = grf.createFenceRing();
-    SUCCEED();
-  }
-}
-
-TEST_CASE("ring: createSemaphoreRing produces flightFrames valid semaphores", "[ring][sync]") {
-  grf::GRF grf(grf::Settings{ .flightFrames = 3 });
-  grf::Ring<grf::Semaphore> ring = grf.createSemaphoreRing();
-  SUCCEED();
+  for (uint32_t i = 0; i < 3; ++i)
+    CHECK(!ring[i].valid());
 }
 
 TEST_CASE("ring: indexing with beginFrame index walks every slot then wraps", "[ring][frame]") {
