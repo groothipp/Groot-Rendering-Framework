@@ -157,20 +157,27 @@ int main() {
     grf.gui().beginFrame();
     grf.profiler().render();
 
-    ImGui::Begin("Particles");
+    ImGui::Begin("Debug");
       ImGui::Text("Count");
       ImGui::SameLine(0.0, 40.0);
       ImGui::Text("%d", particleCount);
       ImGui::Checkbox("AABB Visuals", &aabbToggle);
+      bool shouldReset = ImGui::Button("reset", ImVec2(100.0, 25.0));
+    ImGui::End();
+
+    ImGui::Begin("Brush");
+      ImGui::Text("Press 's' to toggle the brush");
+      ImGui::Text("With the brush on, click and drag to spawn particles");
+      ImGui::SliderInt("radius", &spawnRadius, g_minSpawnRadius, g_maxSpawnRadius);
+    ImGui::End();
+
+    ImGui::Begin("Physics");
       ImGui::SliderFloat("Gamma", &gamma, 0.1, 1.0);
       ImGui::SliderFloat("K", &K, 1.0, 150.0);
       ImGui::SliderFloat("KickC", &kickC, 0.0, 5.0);
       ImGui::SliderFloat("r0", &r0, 0.5 * g_particleRadius, 5.0 * g_particleRadius);
       ImGui::SliderFloat("MaxV", &maxV, 0.05, 5.0);
       ImGui::SliderFloat("MaxA", &maxA, 20.0, 200.0);
-      bool shouldReset = ImGui::Button("reset", ImVec2(100.0, 25.0));
-      if (brushToggle)
-        ImGui::SliderInt("radius", &spawnRadius, g_minSpawnRadius, g_maxSpawnRadius);
     ImGui::End();
 
     graphCmd.beginProfile("gui");
